@@ -13,6 +13,8 @@ export interface Player {
   score: number
   hand: Card[]
   handCount: number
+  // 「みな」で引き直したときの、元の手札と引き直した手札。本人が次にカードを使うまで残る。
+  redraw: { from: Card[]; to: Card[] } | null
 }
 
 export interface PlayRecord {

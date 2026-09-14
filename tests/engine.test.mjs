@@ -129,6 +129,28 @@ test('「みな」は全員が手札を捨て、同じ枚数を引き直す', ()
   assert.equal(state.discardCount, 3);
 });
 
+test('「みな」で引き直すと、元の手札と引き直した手札を本人にだけ残し、本人がカードを使うと消える', () => {
+  const [mina, keep, oldOne, oldTwo] = cards('mina', 'na', 'mi', 'na');
+  const deck = cards('momo', 'usagi', 'nami', 'mi', 'mi', 'mi');
+  let state = arranged({ hands: [[mina, keep], [oldOne], [oldTwo]], deck });
+  state = play(state, { cardId: mina.id });
+
+  assert.deepEqual(state.players[0].redraw.from.map((card) => card.id), [keep.id]);
+  assert.deepEqual(state.players[0].redraw.to.map((card) => card.type), [CARD_TYPES.MOMO]);
+  assert.deepEqual(state.players[1].redraw.from.map((card) => card.id), [oldOne.id]);
+  assert.deepEqual(state.players[1].redraw.to.map((card) => card.type), [CARD_TYPES.USAGI]);
+
+  const view = viewFor(state, 1);
+  assert.equal(view.players[1].redraw.from[0].id, oldOne.id);
+  assert.equal(view.players[0].redraw, null);
+  assert.equal(view.players[2].redraw, null);
+
+  const usagi = handOf(state, 1).find((card) => card.type === CARD_TYPES.USAGI);
+  state = play(state, { cardId: usagi.id });
+  assert.equal(state.players[1].redraw, null);
+  assert.notEqual(state.players[2].redraw, null);
+});
+
 test('山札がなくなったらラウンドを終える', () => {
   const [mi] = cards('mi');
   let state = arranged({ hands: [[mi, card('mi')]], deck: [] });

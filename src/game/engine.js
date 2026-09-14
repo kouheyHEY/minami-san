@@ -81,7 +81,10 @@ function startRound(state, random) {
   // 並べ替えてから番号を振るので、番号からカードの種類はわからない。
   const cards = shuffle(types, random).map((type, index) => ({ id: `r${state.round}-${index}`, type }));
   cards.shift(); // 1枚は中身を見ずにゲームから除外する
-  for (const player of state.players) player.hand = [cards.shift()];
+  for (const player of state.players) {
+    player.hand = [cards.shift()];
+    player.redraw = null;
+  }
   state.deck = cards;
   state.field = [];
   state.discardCount = 0;
@@ -114,13 +117,19 @@ function endRound(state, random) {
 // みな：出した人から順に、全員が手札を捨てて同じ枚数を引き直す。山札が足りなければ引けるだけ引く。
 function redrawAll(state, from) {
   const order = state.players.map((_, step) => seatAfter(state, from, step));
-  const counts = order.map((index) => state.players[index].hand.length);
+  const before = order.map((index) => state.players[index].hand);
   for (const index of order) {
     state.discardCount += state.players[index].hand.length;
     state.players[index].hand = [];
   }
   order.forEach((index, position) => {
-    for (let drawn = 0; drawn < counts[position]; drawn += 1) drawFor(state, index);
+    const player = state.players[index];
+    for (let drawn = 0; drawn < before[position].length; drawn += 1) drawFor(state, index);
+    // 何を持っていて何に変わったかを残す。本人にだけ見せ、本人が次にカードを使うまで残る。
+    // 使う前にもう一度引き直したときは、最初に持っていたカードから見せる。
+    if (before[position].length > 0) {
+      player.redraw = { from: player.redraw?.from ?? before[position], to: [...player.hand] };
+    }
   });
 }
 
@@ -135,6 +144,7 @@ export function createGame(names = [], { rule = 'normal', random = Math.random }
     score: 0,
     hand: [],
     handCount: 0,
+    redraw: null,
   }));
   const startPlayer = Math.floor(random() * players.length);
   const state = {
@@ -172,6 +182,7 @@ export function play(state, { cardId, discard = false } = {}, random = Math.rand
   const card = player.hand[handIndex];
   if (discard && card.type !== CARD_TYPES.NA) throw new Error('Only な can be discarded.');
   player.hand.splice(handIndex, 1);
+  player.redraw = null; // 引き直しの結果は、自分の番に見終わっている
   next.drawnCardId = null;
 
   const record = {
@@ -264,12 +275,16 @@ export function rematch(state, random = Math.random) {
   );
 }
 
-// その席から見える状態。ほかの人の手札と山札の中身は隠し、枚数だけを残す。
+// その席から見える状態。ほかの人の手札と山札の中身、引き直しの結果は隠し、枚数だけを残す。
 export function viewFor(state, seat) {
   return {
     ...state,
     deck: [],
-    players: state.players.map((player, index) => ({ ...player, hand: index === seat ? player.hand : [] })),
+    players: state.players.map((player, index) => ({
+      ...player,
+      hand: index === seat ? player.hand : [],
+      redraw: index === seat ? (player.redraw ?? null) : null,
+    })),
     drawnCardId: seat === state.currentPlayer ? state.drawnCardId : null,
   };
 }

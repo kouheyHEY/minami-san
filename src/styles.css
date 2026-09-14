@@ -173,6 +173,42 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 button.card { transition: border-color .15s, box-shadow .15s, transform .15s; }
 button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); transform: translateY(-3px); }
 @media (hover: hover) { button.card:hover { border-color: var(--ink); } }
+.card em.is-redraw { background: var(--coral); }
+
+/* 山札から引いたカード：裏向きで飛んできて、表に返る */
+.card.is-draw { animation: card-draw .75s cubic-bezier(.2, .8, .25, 1) backwards; }
+.card-back { position: absolute; inset: -1.5px; top: -5px; z-index: 2; display: grid; place-items: center; border-radius: 12px; background: repeating-linear-gradient(45deg, var(--ink) 0 8px, #243842 8px 16px); color: var(--paper); font-size: 26px; font-weight: 900; pointer-events: none; animation: card-back-hide .75s linear forwards; }
+@keyframes card-draw {
+  0% { opacity: 0; transform: translate(36px, -110px) rotate(16deg) scale(.5); }
+  45% { opacity: 1; transform: translate(0, -14px) rotate(-3deg) scale(1.02) rotateY(0); }
+  62% { transform: translate(0, -8px) scale(1.02) rotateY(90deg); }
+  100% { transform: none; }
+}
+@keyframes card-back-hide {
+  0%, 61% { opacity: 1; }
+  62%, 100% { opacity: 0; }
+}
+
+/* みなで引き直したカード：前に持っていたカードが外れて、新しいカードに入れ替わる */
+.card.is-redraw { animation: card-swap 1.1s ease-out backwards; }
+.card-old { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; border-radius: 10px; background: #efe9dc; pointer-events: none; animation: card-old-away 1.1s ease-in forwards; }
+@keyframes card-swap {
+  0%, 45% { transform: none; }
+  60% { transform: scale(.93); }
+  80% { transform: scale(1.05); }
+  100% { transform: none; }
+}
+@keyframes card-old-away {
+  0%, 40% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translate(-24px, -70px) rotate(-18deg) scale(.6); }
+}
+
+.redraw-note { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; padding: 7px 10px; border-radius: 10px; background: #fbe4dc; font-size: 12px; animation: panel-arrive .3s ease-out; }
+.redraw-note b { color: #b3421f; font-size: 11px; }
+.redraw-from { color: var(--muted); text-decoration: line-through; }
+.redraw-note i { color: var(--muted); font-style: normal; }
+.redraw-to { font-weight: 900; }
+
 .hand-panel.is-waiting .card { min-height: 92px; }
 .hand-panel.is-waiting .card .card-art { width: 54px; height: 54px; }
 

@@ -23,6 +23,7 @@ import {
     type Card,
     type CardType,
     type GameState,
+    type Player,
     type RuleKey,
 } from "../game/engine.js";
 import { gameActions, gameStore } from "../game/store.js";
@@ -410,22 +411,55 @@ function CardTip({ type }: { type: CardType }) {
 // 触れたときに下の画面の「閉じる」処理へ届かないようにする（開いた直後に閉じてしまうため）。
 const keepTip = (event: { stopPropagation: () => void }) => event.stopPropagation();
 
+// 引いたカード・引き直したカードの演出。画面を描き直すたびに繰り返さないよう、見せたものを覚えておく。
+type CardEffect = { key: string; kind: "draw" | "redraw"; from?: CardType };
+const shownEffects = new Set<string>();
+
+function useFirstShow(effect?: CardEffect) {
+    // 最初に表示したときに決めて固定する（途中で描き直しても演出が途切れないように）。
+    const [first] = useState(() => (effect ? !shownEffects.has(effect.key) : false));
+    useEffect(() => {
+        if (effect) shownEffects.add(effect.key);
+    }, [effect?.key]);
+    return first;
+}
+
+// 手札の各カードにつける演出。引いたカードは「NEW」、みなで引き直したカードは「引き直し」。
+function cardEffects(game: GameState, player: Player) {
+    const effects = new Map<string, CardEffect>();
+    player.redraw?.to.forEach((card, index) => {
+        effects.set(card.id, {
+            key: `${game.matchId}:${card.id}:redraw`,
+            kind: "redraw",
+            from: player.redraw?.from[index]?.type,
+        });
+    });
+    if (game.drawnCardId) {
+        effects.set(game.drawnCardId, {
+            key: `${game.matchId}:${game.drawnCardId}:draw`,
+            kind: "draw",
+        });
+    }
+    return effects;
+}
+
 function CardFace({
     card,
     align,
-    isNew = false,
+    effect,
     selected = false,
     onSelect,
 }: {
     card: Card;
     align: TipAlign;
-    isNew?: boolean;
+    effect?: CardEffect;
     selected?: boolean;
     onSelect?: () => void;
 }) {
     const { openId, toggle } = useContext(TipContext);
     const info = CARD_INFO[card.type];
     const tipOpen = openId === card.id;
+    const animate = useFirstShow(effect) ? effect?.kind : null;
     // 選べるカードは、1回目のタップで選んで説明を開く。選んだカードをもう一度タップすると説明を閉じる。
     const press = () => {
         if (!onSelect) return toggle(card.id);
@@ -440,13 +474,27 @@ function CardFace({
                 aria-checked={onSelect ? selected : undefined}
                 aria-expanded={tipOpen}
                 aria-label={`${info.label}：${info.text}`}
-                className={`card card-${card.type} ${selected ? "is-selected" : ""}`}
+                className={`card card-${card.type} ${selected ? "is-selected" : ""} ${animate ? `is-${animate}` : ""}`}
                 onPointerDown={keepTip}
                 onClick={press}
             >
                 <CardArt type={card.type} />
                 <strong>{info.label}</strong>
-                {isNew && <em>NEW</em>}
+                {effect && (
+                    <em className={effect.kind === "redraw" ? "is-redraw" : ""}>
+                        {effect.kind === "draw" ? "NEW" : "引き直し"}
+                    </em>
+                )}
+                {animate === "draw" && (
+                    <span className="card-back" aria-hidden="true">
+                        算
+                    </span>
+                )}
+                {animate === "redraw" && effect?.from && (
+                    <span className="card-old" aria-hidden="true">
+                        <CardArt type={effect.from} />
+                    </span>
+                )}
             </button>
             <CardTip type={card.type} />
         </div>
@@ -484,10 +532,26 @@ function outcomeText(card: Card, after: number) {
     return "";
 }
 
+const cardNames = (cards: Card[]) =>
+    cards.length > 0 ? cards.map((card) => CARD_INFO[card.type].label).join("・") : "なし";
+
+// みなで手札が入れ替わったことと、何から何に変わったかを見せる。
+function RedrawNote({ redraw }: { redraw: NonNullable<Player["redraw"]> }) {
+    return (
+        <p className="redraw-note" role="status">
+            <b>「みな」で引き直し</b>
+            <span className="redraw-from">{cardNames(redraw.from)}</span>
+            <i aria-hidden="true">→</i>
+            <span className="redraw-to">{cardNames(redraw.to)}</span>
+        </p>
+    );
+}
+
 function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: number; busy: boolean }) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const player = game.players[selfIndex];
     const selected = player.hand.find((card) => card.id === selectedId) ?? null;
+    const effects = cardEffects(game, player);
 
     if (game.currentPlayer !== selfIndex) {
         return (
@@ -495,9 +559,10 @@ function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: numb
                 <div className="panel-kicker">WAITING</div>
                 <h2>{game.players[game.currentPlayer].name}の番です</h2>
                 <p>あなたの手札</p>
+                {player.redraw && <RedrawNote redraw={player.redraw} />}
                 <div className="hand-cards">
                     {player.hand.map((card) => (
-                        <CardFace key={card.id} card={card} align="start" />
+                        <CardFace key={card.id} card={card} align="start" effect={effects.get(card.id)} />
                     ))}
                 </div>
             </section>
@@ -516,13 +581,14 @@ function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: numb
         <section className={`hand-panel ${busy ? "is-busy" : ""}`} aria-busy={busy}>
             <div className="panel-kicker">YOUR TURN</div>
             <h2>1枚えらんで使う</h2>
+            {player.redraw && <RedrawNote redraw={player.redraw} />}
             <div className="hand-cards" role="radiogroup" aria-label="手札">
                 {player.hand.map((card, index) => (
                     <CardFace
                         key={card.id}
                         card={card}
                         align={index === 0 ? "start" : "end"}
-                        isNew={card.id === game.drawnCardId}
+                        effect={effects.get(card.id)}
                         selected={card.id === selectedId}
                         onSelect={() => setSelectedId(card.id)}
                     />
