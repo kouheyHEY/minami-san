@@ -1,5 +1,13 @@
 import { useSelector } from "@tanstack/react-store";
-import { useEffect, useMemo, useRef, useState } from "react";
+import {
+    createContext,
+    useContext,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import {
     CARD_INFO,
@@ -13,10 +21,12 @@ import {
     fieldCount,
     viewFor,
     type Card,
+    type CardType,
     type GameState,
     type RuleKey,
 } from "../game/engine.js";
 import { gameActions, gameStore } from "../game/store.js";
+import { CARD_ORDER, CardArt } from "./CardArt.js";
 import { inviteUrl, normalizeRoomCode } from "../online/roomClient.js";
 import { playSound, type SoundName } from "../audio/sound.js";
 
@@ -342,14 +352,12 @@ function FieldPanel({ game }: { game: GameState }) {
                 </dl>
             </div>
             <ol className="field-track">
-                {game.field.map((card) => (
-                    <li
+                {game.field.map((card, index) => (
+                    <FieldCard
                         key={card.id}
-                        className={`field-card card-${card.type}`}
-                        style={{ gridColumn: `span ${cardWeight(card)}` }}
-                    >
-                        {CARD_INFO[card.type].label}
-                    </li>
+                        card={card}
+                        align={index < 2 ? "start" : index > 3 ? "end" : "center"}
+                    />
                 ))}
                 {emptySlots.map((slot) => (
                     <li key={`slot-${slot}`} className={`field-slot slot-${slot}`}>
@@ -362,36 +370,110 @@ function FieldPanel({ game }: { game: GameState }) {
     );
 }
 
+// カードの説明の吹き出し。開けるのは画面全体で1つだけで、ほかの場所に触れたら閉じる。
+const TipContext = createContext<{
+    openId: string | null;
+    toggle: (id: string, open?: boolean) => void;
+}>({ openId: null, toggle: () => {} });
+
+function TipProvider({ children }: { children: ReactNode }) {
+    const [openId, setOpenId] = useState<string | null>(null);
+    useEffect(() => {
+        if (openId === null) return;
+        const close = () => setOpenId(null);
+        document.addEventListener("pointerdown", close);
+        return () => document.removeEventListener("pointerdown", close);
+    }, [openId]);
+    const value = useMemo(
+        () => ({
+            openId,
+            toggle: (id: string, open?: boolean) =>
+                setOpenId((current) => ((open ?? current !== id) ? id : null)),
+        }),
+        [openId],
+    );
+    return <TipContext.Provider value={value}>{children}</TipContext.Provider>;
+}
+
+type TipAlign = "start" | "center" | "end";
+
+function CardTip({ type }: { type: CardType }) {
+    const info = CARD_INFO[type];
+    return (
+        <div className="card-tip" role="tooltip">
+            <strong>{info.label}</strong>
+            <p>{info.text}</p>
+        </div>
+    );
+}
+
+// 触れたときに下の画面の「閉じる」処理へ届かないようにする（開いた直後に閉じてしまうため）。
+const keepTip = (event: { stopPropagation: () => void }) => event.stopPropagation();
+
 function CardFace({
     card,
+    align,
     isNew = false,
     selected = false,
     onSelect,
 }: {
     card: Card;
+    align: TipAlign;
     isNew?: boolean;
     selected?: boolean;
     onSelect?: () => void;
 }) {
+    const { openId, toggle } = useContext(TipContext);
     const info = CARD_INFO[card.type];
-    const content = (
-        <>
-            <strong>{info.label}</strong>
-            <small>{info.text}</small>
-            {isNew && <em>NEW</em>}
-        </>
-    );
-    if (!onSelect) return <div className={`card card-${card.type}`}>{content}</div>;
+    const tipOpen = openId === card.id;
+    // 選べるカードは、1回目のタップで選んで説明を開く。選んだカードをもう一度タップすると説明を閉じる。
+    const press = () => {
+        if (!onSelect) return toggle(card.id);
+        toggle(card.id, selected ? !tipOpen : true);
+        onSelect();
+    };
     return (
-        <button
-            type="button"
-            role="radio"
-            aria-checked={selected}
-            className={`card card-${card.type} ${selected ? "is-selected" : ""}`}
-            onClick={onSelect}
+        <div className={`card-slot tip-${align} ${tipOpen ? "is-tip-open" : ""}`}>
+            <button
+                type="button"
+                role={onSelect ? "radio" : undefined}
+                aria-checked={onSelect ? selected : undefined}
+                aria-expanded={tipOpen}
+                aria-label={`${info.label}：${info.text}`}
+                className={`card card-${card.type} ${selected ? "is-selected" : ""}`}
+                onPointerDown={keepTip}
+                onClick={press}
+            >
+                <CardArt type={card.type} />
+                <strong>{info.label}</strong>
+                {isNew && <em>NEW</em>}
+            </button>
+            <CardTip type={card.type} />
+        </div>
+    );
+}
+
+function FieldCard({ card, align }: { card: Card; align: TipAlign }) {
+    const { openId, toggle } = useContext(TipContext);
+    const info = CARD_INFO[card.type];
+    const tipOpen = openId === card.id;
+    return (
+        <li
+            className={`field-cell tip-${align} ${tipOpen ? "is-tip-open" : ""}`}
+            style={{ gridColumn: `span ${cardWeight(card)}` }}
         >
-            {content}
-        </button>
+            <button
+                type="button"
+                className={`field-card card-${card.type}`}
+                aria-expanded={tipOpen}
+                aria-label={`${info.label}：${info.text}`}
+                onPointerDown={keepTip}
+                onClick={() => toggle(card.id)}
+            >
+                <CardArt type={card.type} />
+            </button>
+            <CardTip type={card.type} />
+        </li>
     );
 }
 
@@ -415,7 +497,7 @@ function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: numb
                 <p>あなたの手札</p>
                 <div className="hand-cards">
                     {player.hand.map((card) => (
-                        <CardFace key={card.id} card={card} />
+                        <CardFace key={card.id} card={card} align="start" />
                     ))}
                 </div>
             </section>
@@ -435,10 +517,11 @@ function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: numb
             <div className="panel-kicker">YOUR TURN</div>
             <h2>1枚えらんで使う</h2>
             <div className="hand-cards" role="radiogroup" aria-label="手札">
-                {player.hand.map((card) => (
+                {player.hand.map((card, index) => (
                     <CardFace
                         key={card.id}
                         card={card}
+                        align={index === 0 ? "start" : "end"}
                         isNew={card.id === game.drawnCardId}
                         selected={card.id === selectedId}
                         onSelect={() => setSelectedId(card.id)}
@@ -654,22 +737,32 @@ function IntroModal({ rule }: { rule: RuleKey }) {
                 <ol className="intro-steps">
                     <li>
                         <b>1. 1枚引いて、1枚使う</b>
-                        手番が来ると自動で1枚引きます。手札2枚から1枚を選んで場に出します。
+                        番が来ると自動で1枚引きます。手札2枚から1枚を選んで場に出します。
                     </li>
                     <li>
-                        <b>2. ちょうど3枚で+3点</b>
-                        場を3枚にした人が3点。ラウンドは続きます。
+                        <b>2. ちょうど3枚で+3点、ちょうど7枚で+7点</b>
+                        「みなみ」で7枚なら10点。7枚か、7を超えたらラウンド終了（超えたら得点なし）。
                     </li>
                     <li>
-                        <b>3. ちょうど7枚で+7点</b>
-                        「みなみ」で7枚にすると10点。7を超えたら誰も得点しません。どちらもそこでラウンド終了。
-                    </li>
-                    <li>
-                        <b>4. {TARGET_SCORE}点先取</b>
-                        届かなければ、最大{RULES[rule].laps}周で最高得点の人が勝ちです。
+                        <b>3. {TARGET_SCORE}点先取</b>
+                        届かなければ、最大{RULES[rule].laps}周で最高得点の人の勝ちです。
                     </li>
                 </ol>
-                <p className="intro-note">カードの効果は、カードに書いてあります。細かいルールは「遊び方」へ。</p>
+                <div className="intro-cards">
+                    {CARD_ORDER.map((type) => (
+                        <div key={type}>
+                            <CardArt type={type} />
+                            <div>
+                                <strong>
+                                    {CARD_INFO[type].label}
+                                    <small>×{CARD_INFO[type].count}</small>
+                                </strong>
+                                <p>{CARD_INFO[type].text}</p>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+                <p className="intro-note">カードはタップすると説明が出ます。細かいルールは「遊び方」でいつでも見られます。</p>
                 <div className="intro-actions">
                     <button ref={okRef} className="primary-button" onClick={gameActions.closeIntro}>
                         OK、はじめる
@@ -710,6 +803,7 @@ function MatchScreen({ stored }: { stored: GameState }) {
     };
 
     return (
+        <TipProvider>
         <main className="game-page">
             {showIntro && <IntroModal rule={game.rule} />}
             <BurstOverlay burst={burst} />
@@ -760,6 +854,7 @@ function MatchScreen({ stored }: { stored: GameState }) {
                 </details>
             </div>
         </main>
+        </TipProvider>
     );
 }
 

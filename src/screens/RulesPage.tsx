@@ -1,4 +1,5 @@
-import { CARD_INFO, RULES, TARGET_SCORE, type CardType } from '../game/engine.js'
+import { CARD_INFO, RULES, TARGET_SCORE } from '../game/engine.js'
+import { CARD_ORDER, CardArt } from './CardArt'
 
 const RULE_STEPS = [
   {
@@ -52,11 +53,16 @@ export function RulesPage() {
           <h2>CARDS</h2>
         </div>
         <div className="card-rule-grid">
-          {(Object.entries(CARD_INFO) as Array<[CardType, (typeof CARD_INFO)[CardType]]>).map(([type, info]) => (
-            <article key={type} className={`card card-${type}`}>
-              <strong>{info.label}</strong>
-              <small>{info.text}</small>
-              <em className="card-count">×{info.count}</em>
+          {CARD_ORDER.map((type) => (
+            <article key={type} className={`rule-card card-${type}`}>
+              <CardArt type={type} />
+              <div>
+                <strong>
+                  {CARD_INFO[type].label}
+                  <small>×{CARD_INFO[type].count}</small>
+                </strong>
+                <p>{CARD_INFO[type].text}</p>
+              </div>
             </article>
           ))}
         </div>

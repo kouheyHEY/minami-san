@@ -1,6 +1,6 @@
 node_modules/
 dist/
 .claude/
-# カードの絵の元データ（ゲームでは未使用）
+# カードの絵の元データ。ゲームで使う絵は src/assets/cards にコピーしてある
 edge/
 png/
