@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.claude/
+# カードの絵の元データ（ゲームでは未使用）
+edge/
+png/
