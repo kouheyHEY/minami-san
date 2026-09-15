@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { CARD_INFO, CARD_TYPES, createGame, play, viewFor } from '../src/game/engine.js';
+import { CARD_INFO, CARD_TYPES, chooseCpuMove, createGame, play, viewFor } from '../src/game/engine.js';
 
 let serial = 0;
 const card = (type) => ({ id: `t${(serial += 1)}`, type });
@@ -178,6 +178,27 @@ test('最後のラウンドが終わったら最高得点の人が勝ち。同�
   state = play(state, { cardId: resort.id });
   assert.equal(state.status, 'finished');
   assert.deepEqual(state.winners, [1, 2]);
+});
+
+test('CPU は7枚目や3枚目を取れるカードを選び、7を超えるカードは出さない', () => {
+  const [na, resort] = cards('na', 'resort');
+  const seven = arranged({ hands: [[resort, na]], field: cards('mi', 'mi', 'mi', 'mi', 'mi', 'mi') });
+  assert.deepEqual(chooseCpuMove(seven, 0, first), { cardId: na.id, discard: false });
+
+  const [mi, na2] = cards('mi', 'na');
+  const three = arranged({ hands: [[mi, na2]], field: cards('mi', 'mi') });
+  assert.equal(chooseCpuMove(three, 0, first).discard, false);
+
+  // 場が6枚で「Dリゾート」を出すと8枚になるので、「なみ」で場を流す
+  const [resort2, nami] = cards('resort', 'nami');
+  const over = arranged({ hands: [[resort2, nami]], field: cards('mi', 'mi', 'mi', 'mi', 'mi', 'mi') });
+  assert.deepEqual(chooseCpuMove(over, 0, first), { cardId: nami.id, discard: false });
+});
+
+test('CPU は自分の番でなければ何もしない', () => {
+  const state = arranged({ hands: [cards('mi', 'na')] });
+  assert.equal(chooseCpuMove(state, 1), null);
+  assert.equal(chooseCpuMove({ ...state, status: 'finished' }, 0), null);
 });
 
 test('席ごとの見え方では、ほかの人の手札と山札の中身を隠し、枚数は残す', () => {

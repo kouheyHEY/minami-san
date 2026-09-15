@@ -267,6 +267,41 @@ export function play(state, { cardId, discard = false } = {}, random = Math.rand
   return syncCounts(next);
 }
 
+// CPU の手。自分の手札と場の枚数（全員に見えている情報）だけで決める。
+// 出したあとの場の枚数で点をつけ、次の人に3枚目・7枚目を渡しやすい枚数は避ける。
+function scoreCpuMove(state, { card, discard }, count) {
+  const after = discard ? count : card.type === CARD_TYPES.NAMI ? 1 : count + cardWeight(card);
+  if (after > FIELD_LIMIT) return -10;
+  if (!discard && after === FIELD_LIMIT) return card.type === CARD_TYPES.MINAMI ? 10 : 7;
+  let score = !discard && after === 3 ? 3 : 0;
+  const risk = after === 2 || after === 6 ? 2.5 : after === 5 ? 0.8 : 0;
+  // 2人で「うさぎ」を出すと、もう一度自分の番になるので、次の3枚目・7枚目は自分が取れる。
+  const playsAgain = !discard && card.type === CARD_TYPES.USAGI && state.players.length === 2;
+  score += playsAgain ? risk * 0.8 : -risk;
+  if (!discard && card.type === CARD_TYPES.MINAMI) score -= 1.5; // みなみは7枚目まで取っておく
+  return score;
+}
+
+export function chooseCpuMove(state, seat, random = Math.random) {
+  if (state.status !== 'playing' || state.currentPlayer !== seat) return null;
+  const hand = state.players[seat]?.hand ?? [];
+  const count = fieldCount(state.field);
+  const moves = hand.flatMap((card) => [
+    { card, discard: false },
+    ...(card.type === CARD_TYPES.NA ? [{ card, discard: true }] : []),
+  ]);
+  let best = null;
+  let bestScore = -Infinity;
+  for (const move of moves) {
+    const score = scoreCpuMove(state, move, count) + random() * 0.5; // 同じくらいの手は、たまに変える
+    if (score > bestScore) {
+      best = move;
+      bestScore = score;
+    }
+  }
+  return best ? { cardId: best.card.id, discard: best.discard } : null;
+}
+
 export function rematch(state, random = Math.random) {
   if (state.status !== 'finished') throw new Error('The match is still in progress.');
   return createGame(

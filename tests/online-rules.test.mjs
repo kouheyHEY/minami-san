@@ -1,7 +1,19 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { applyAction, canAct, createGame, minSeats, seatCount, viewState } from '../src/game/online-rules.js';
+import { applyAction, canAct, cpuAction, createGame, minSeats, seatCount, viewState } from '../src/game/online-rules.js';
+
+test('CPU の席は、自分の番のときだけ手札から出せるカードを返す', () => {
+  const state = createGame({ names: ['A', 'CPU1'] });
+  const turn = state.currentPlayer;
+  const action = cpuAction(state, turn);
+  assert.equal(action.type, 'play');
+  assert.equal(canAct(state, turn, action), true);
+  assert.ok(state.players[turn].hand.some((card) => card.id === action.cardId));
+  assert.equal(cpuAction(state, 1 - turn), null);
+  const next = applyAction(state, action, { seat: turn });
+  assert.equal(next.lastPlay.player, turn);
+});
 
 test('部屋は2〜5人。部屋をつくった人が始めたときの人数で遊ぶ', () => {
   assert.equal(minSeats, 2);

@@ -95,6 +95,11 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .member-list small:first-of-type { margin-left: auto; }
 .member-list small.is-self { background: var(--ink); color: white; }
 .waiting-card .member-count { font: 500 12px 'DM Mono'; }
+.member-remove { flex: 0 0 auto; width: 28px; height: 28px; margin-left: 2px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 16px; }
+.member-remove:hover { background: white; }
+.score-name small.is-cpu { color: var(--muted); }
+.setup-heading h1 { margin: 6px 0; font-size: 28px; letter-spacing: -.04em; }
+.setup-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
 .waiting-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .waiting-actions .primary-button { grid-column: 1 / -1; }
 .waiting-actions .ghost-button { min-height: 44px; padding: 0 10px; font-size: 12px; }
@@ -167,6 +172,8 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .card-slot { position: relative; min-width: 0; }
 .card { position: relative; width: 100%; min-height: 124px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 10px 8px 8px; border: 1.5px solid var(--line); border-top: 5px solid var(--line); border-radius: 12px; background: white; color: var(--ink); }
 .card strong { font-size: 12px; line-height: 1.2; }
+/* 絵がまだ無いカードは、大きな名前だけにする（名前が二重にならないように） */
+.card .card-art.is-text + strong { display: none; }
 .card em { position: absolute; top: 7px; right: 7px; padding: 1px 6px; border-radius: 99px; background: var(--ink); color: white; font: 500 9px/1.5 'DM Mono'; font-style: normal; }
 .card-mina, .card-nami, .card-usagi, .card-momo { border-top-color: var(--coral); }
 .card-minami, .card-resort { border-top-color: var(--sea); }
@@ -189,19 +196,21 @@ button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5p
   62%, 100% { opacity: 0; }
 }
 
-/* みなで引き直したカード：前に持っていたカードが外れて、新しいカードに入れ替わる */
-.card.is-redraw { animation: card-swap 1.1s ease-out backwards; }
-.card-old { position: absolute; inset: 0; z-index: 2; display: grid; place-items: center; border-radius: 10px; background: #efe9dc; pointer-events: none; animation: card-old-away 1.1s ease-in forwards; }
-@keyframes card-swap {
-  0%, 45% { transform: none; }
-  60% { transform: scale(.93); }
-  80% { transform: scale(1.05); }
-  100% { transform: none; }
+/* 引き直しのあとに手番の1枚を引くときは、少し遅れて届く */
+.card.is-draw.is-late, .card.is-late .card-back { animation-delay: .3s; }
+
+/* みな：持っていたカードが手札から出ていき、いったん0枚になる */
+.card.is-discarding { animation: card-discard .5s ease-in forwards; }
+@keyframes card-discard {
+  0% { opacity: 1; transform: none; }
+  100% { opacity: 0; transform: translate(-20px, -80px) rotate(-16deg) scale(.6); }
 }
-@keyframes card-old-away {
-  0%, 40% { opacity: 1; transform: none; }
-  100% { opacity: 0; transform: translate(-24px, -70px) rotate(-18deg) scale(.6); }
-}
+.hand-cards.is-redrawing, .hand-empty { min-height: 124px; }
+.hand-empty { display: grid; place-content: center; gap: 4px; border: 1.5px dashed var(--coral); border-radius: 12px; text-align: center; animation: panel-arrive .25s ease-out; }
+.hand-empty strong { color: var(--coral); font-size: 18px; }
+.hand-empty span { color: var(--muted); font-size: 12px; }
+.hand-panel.is-waiting .hand-cards.is-redrawing, .hand-panel.is-waiting .hand-empty { min-height: 92px; }
+.score-hand.is-empty { align-items: center; color: var(--coral); font-size: 10px; font-weight: 700; }
 
 .redraw-note { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; padding: 7px 10px; border-radius: 10px; background: #fbe4dc; font-size: 12px; animation: panel-arrive .3s ease-out; }
 .redraw-note b { color: #b3421f; font-size: 11px; }
@@ -345,6 +354,7 @@ button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5p
   .score-value { font-size: 32px; }
   .card { min-height: 140px; }
   .card .card-art { width: 92px; height: 92px; }
+  .hand-cards.is-redrawing, .hand-empty { min-height: 140px; }
   .intro-cards { grid-template-columns: 1fr 1fr; }
   .rule-grid { grid-template-columns: repeat(2, 1fr); }
   .rules-page { padding: 60px clamp(28px, 5vw, 64px) 88px; }

@@ -72,5 +72,10 @@ export function cardWeight(card: Card): number
 export function fieldCount(field: Card[]): number
 export function createGame(names: string[], options?: { rule?: RuleKey; random?: () => number }): GameState
 export function play(state: GameState, move: { cardId: string; discard?: boolean }, random?: () => number): GameState
+export function chooseCpuMove(
+  state: GameState,
+  seat: number,
+  random?: () => number,
+): { cardId: string; discard: boolean } | null
 export function rematch(state: GameState, random?: () => number): GameState
 export function viewFor(state: GameState, seat: number | null): GameState

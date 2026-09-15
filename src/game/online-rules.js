@@ -1,6 +1,6 @@
 // game-server の共通 Edge Function から使うルール定義。
 // game-server/supabase/functions/game-rooms/rules/minami-san/ へ engine.js と一緒にコピーして使う。
-import { MAX_PLAYERS, MIN_PLAYERS, createGame as createMatch, play, rematch, viewFor } from './engine.js';
+import { MAX_PLAYERS, MIN_PLAYERS, chooseCpuMove, createGame as createMatch, play, rematch, viewFor } from './engine.js';
 
 // 2〜5人。席が埋まるのを待たず、部屋をつくった人が始める。
 export const seatCount = MAX_PLAYERS;
@@ -22,6 +22,12 @@ export function applyAction(state, action, { random = Math.random } = {}) {
     return play(state, { cardId: String(action.cardId ?? ''), discard: action.discard === true }, random);
   }
   throw new Error('Unknown action.');
+}
+
+// CPU の席の操作。いまその席がすることがなければ null。
+export function cpuAction(state, seat, random = Math.random) {
+  const move = chooseCpuMove(state, seat, random);
+  return move ? { type: 'play', ...move } : null;
 }
 
 // 手札は持ち主にだけ、山札の中身は誰にも見せない。

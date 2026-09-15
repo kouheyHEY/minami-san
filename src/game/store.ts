@@ -1,13 +1,5 @@
 import { createStore } from "@tanstack/react-store";
-import {
-    MAX_PLAYERS,
-    MIN_PLAYERS,
-    createGame,
-    play,
-    rematch,
-    type GameState,
-    type RuleKey,
-} from "./engine.js";
+import type { GameState, RuleKey } from "./engine.js";
 import {
     RoomError,
     isClosed,
@@ -24,6 +16,11 @@ import {
 import { loadSoundPreference, setSoundEnabled } from "../audio/sound.js";
 
 const OFFLINE_POLL_MS = 3000;
+// CPU の番は、直前の結果を見る間をおいてから進める。みなの引き直しは演出が長いので長めに待つ。
+const CPU_DELAY_MS = 1400;
+const CPU_DELAY_AFTER_REDRAW_MS = 2800;
+// 進める役の端末が止まっていても進むよう、ほかの参加者はこれだけ遅れて代わりに頼む。
+const CPU_BACKUP_DELAY_MS = 6000;
 
 interface OnlineState {
     seat: SavedSeat;
@@ -33,34 +30,25 @@ interface OnlineState {
 
 interface AppState {
     screen: "setup" | "waiting" | "game";
-    mode: "local" | "online";
-    names: string[];
     rule: RuleKey;
     joinCode: string;
     onlineName: string;
-    // この端末で遊ぶときは全員分の状態、オンラインでは自分の席から見える状態。
+    // 自分の席から見える状態（ほかの人の手札は入っていない）。
     game: GameState | null;
     online: OnlineState | null;
-    // この端末で遊ぶとき、次の人に端末を渡すまで手札を伏せておく。
-    handoff: boolean;
     busy: boolean;
     soundOn: boolean;
     showIntro: boolean;
     error: string;
 }
 
-const invitedCode = roomCodeFromUrl();
-
 export const gameStore = createStore<AppState>({
     screen: "setup",
-    mode: invitedCode ? "online" : "local",
-    names: ["みなみ", "ゲスト1", "ゲスト2"],
     rule: "normal",
-    joinCode: invitedCode,
+    joinCode: roomCodeFromUrl(),
     onlineName: "",
     game: null,
     online: null,
-    handoff: false,
     busy: false,
     soundOn: loadSoundPreference(),
     showIntro: false,
@@ -76,8 +64,6 @@ function patch(update: Partial<AppState> | ((state: AppState) => Partial<AppStat
 
 const errorMessage = (error: unknown) =>
     error instanceof Error ? error.message : "通信に失敗しました。";
-
-// ---- オンライン対戦 ----
 
 let unsubscribeRoom: (() => void) | null = null;
 let pollTimer: ReturnType<typeof setInterval> | null = null;
@@ -105,7 +91,53 @@ function applyRoom(room: RoomView) {
             online: { ...state.online, room },
         };
     });
+    scheduleCpu();
 }
+
+// ---- CPU の番 ----
+
+let cpuTimer: ReturnType<typeof setTimeout> | null = null;
+let cpuVersion = -1;
+
+function stopCpu() {
+    if (cpuTimer !== null) clearTimeout(cpuTimer);
+    cpuTimer = null;
+    cpuVersion = -1;
+}
+
+// いまが CPU の番なら、少し待ってからサーバーに CPU の手を進めてもらう。
+// 最初の人間の席（ふつうは部屋をつくった人）の端末が進め、ほかの端末は遅れて代わりに頼む。
+function scheduleCpu(retry = false) {
+    const online = gameStore.state.online;
+    const game = gameStore.state.game;
+    if (!online || !game) return;
+    const { room } = online;
+    if (!retry && room.version === cpuVersion) return;
+    stopCpu();
+    cpuVersion = room.version;
+    if (game.status !== "playing" || !room.seats[game.currentPlayer]?.cpu) return;
+
+    const driver = room.seats.findIndex((entry) => !entry.cpu);
+    const delay =
+        (game.lastPlay?.cardType === "mina" ? CPU_DELAY_AFTER_REDRAW_MS : CPU_DELAY_MS) +
+        (room.seat === driver ? 0 : CPU_BACKUP_DELAY_MS);
+    const version = room.version;
+    cpuTimer = setTimeout(async () => {
+        cpuTimer = null;
+        const current = gameStore.state.online;
+        if (!current || current.room.version !== version) return;
+        try {
+            const { room: next } = await roomApi.cpu(current.seat, version);
+            applyRoom(next);
+        } catch (error) {
+            if (error instanceof RoomError && error.room) return applyRoom(error.room);
+            // 通信できなかったときは、もう一度試す
+            if (!(error instanceof RoomError) || error.status === 0) scheduleCpu(true);
+        }
+    }, delay);
+}
+
+// ---- 部屋 ----
 
 async function refreshRoom() {
     const online = gameStore.state.online;
@@ -139,7 +171,6 @@ function enterRoom(room: RoomView, seat: SavedSeat, showIntro: boolean) {
     seatStorage.save(seat);
     unsubscribeRoom?.();
     patch({
-        mode: "online",
         joinCode: "",
         busy: false,
         error: "",
@@ -163,6 +194,7 @@ function leaveRoom(error = "") {
     unsubscribeRoom = null;
     if (pollTimer !== null) clearInterval(pollTimer);
     pollTimer = null;
+    stopCpu();
     document.removeEventListener("visibilitychange", onVisible);
     seatStorage.clear();
     patch({ screen: "setup", game: null, online: null, busy: false, error });
@@ -184,17 +216,18 @@ async function withBusy(task: () => Promise<void>) {
     }
 }
 
-function sendAction(action: OnlineAction) {
+// 自分の席で部屋に操作を送り、返ってきた状態を映す。
+function withSeat(request: (seat: SavedSeat, room: RoomView) => Promise<{ room: RoomView }>) {
     return withBusy(async () => {
         const online = gameStore.state.online;
         if (!online) return;
-        const { room } = await roomApi.act(
-            online.seat,
-            online.room.version,
-            action,
-        );
+        const { room } = await request(online.seat, online.room);
         applyRoom(room);
     });
+}
+
+function sendAction(action: OnlineAction) {
+    return withSeat((seat, room) => roomApi.act(seat, room.version, action));
 }
 
 async function leaveOnServer(request: (seat: SavedSeat) => Promise<unknown>) {
@@ -209,35 +242,7 @@ async function leaveOnServer(request: (seat: SavedSeat) => Promise<unknown>) {
     }
 }
 
-// 画面の操作。オンラインではサーバーへ送り、この端末ではその場で反映する。
-const isOnline = () =>
-    gameStore.state.mode === "online" && gameStore.state.online !== null;
-
 export const gameActions = {
-    setMode(mode: AppState["mode"]) {
-        patch({ mode, error: "" });
-    },
-    setName(index: number, name: string) {
-        patch((state) => ({
-            names: state.names.map((current, nameIndex) =>
-                nameIndex === index ? name : current,
-            ),
-        }));
-    },
-    addPlayer() {
-        patch((state) =>
-            state.names.length < MAX_PLAYERS
-                ? { names: [...state.names, `ゲスト${state.names.length}`] }
-                : {},
-        );
-    },
-    removePlayer(index: number) {
-        patch((state) =>
-            state.names.length > MIN_PLAYERS
-                ? { names: state.names.filter((_, nameIndex) => nameIndex !== index) }
-                : {},
-        );
-    },
     setRule(rule: RuleKey) {
         patch({ rule });
     },
@@ -252,48 +257,11 @@ export const gameActions = {
         setSoundEnabled(soundOn);
         patch({ soundOn });
     },
-    start() {
-        patch((state) => ({
-            screen: "game",
-            mode: "local",
-            showIntro: true,
-            handoff: true,
-            game: createGame(state.names, { rule: state.rule }),
-            error: "",
-        }));
-    },
-    reveal() {
-        patch({ handoff: false });
-    },
     play(cardId: string, discard = false) {
-        if (isOnline()) return void sendAction({ type: "play", cardId, discard });
-        patch((state) => {
-            if (!state.game) return {};
-            try {
-                const next = play(state.game, { cardId, discard });
-                return {
-                    game: next,
-                    handoff:
-                        next.status === "playing" &&
-                        next.currentPlayer !== state.game.currentPlayer,
-                    error: "",
-                };
-            } catch (error) {
-                return { error: errorMessage(error) };
-            }
-        });
+        return void sendAction({ type: "play", cardId, discard });
     },
     playAgain() {
-        if (isOnline()) return void sendAction({ type: "rematch" });
-        patch((state) =>
-            state.game
-                ? { game: rematch(state.game), handoff: true, error: "" }
-                : {},
-        );
-    },
-    reset() {
-        if (isOnline()) return leaveRoom();
-        patch({ screen: "setup", game: null, error: "" });
+        return void sendAction({ type: "rematch" });
     },
     closeIntro() {
         patch({ showIntro: false });
@@ -331,14 +299,13 @@ export const gameActions = {
         });
     },
     startRoom() {
-        return withBusy(async () => {
-            const online = gameStore.state.online;
-            if (!online) return;
-            const { room } = await roomApi.start(online.seat, {
-                rule: gameStore.state.rule,
-            });
-            applyRoom(room);
-        });
+        return withSeat((seat) => roomApi.start(seat, { rule: gameStore.state.rule }));
+    },
+    addCpu() {
+        return withSeat((seat) => roomApi.addCpu(seat));
+    },
+    removeCpu(seatIndex: number) {
+        return withSeat((seat) => roomApi.removeCpu(seat, seatIndex));
     },
     // 始まる前の部屋から抜ける。部屋をつくった人の場合は解散になる。
     leaveWaitingRoom() {

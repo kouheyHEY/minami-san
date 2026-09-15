@@ -19,7 +19,7 @@ export interface RoomView {
     seat: number | null;
     seatCount: number;
     minSeats: number;
-    seats: Array<{ name: string }>;
+    seats: Array<{ name: string; cpu: boolean }>;
     state: GameState | { status: "waiting" } | { status: "closed" };
     realtime: { topic: string; key: string };
 }
@@ -86,6 +86,12 @@ export const roomApi = {
         }),
     leave: (seat: SavedSeat) =>
         call({ op: "leave", code: seat.code, token: seat.token }),
+    addCpu: (seat: SavedSeat) =>
+        call({ op: "addCpu", code: seat.code, token: seat.token }),
+    removeCpu: (seat: SavedSeat, seatIndex: number) =>
+        call({ op: "removeCpu", code: seat.code, token: seat.token, seatIndex }),
+    cpu: (seat: SavedSeat, version: number) =>
+        call({ op: "cpu", code: seat.code, token: seat.token, version }),
     close: (seat: SavedSeat) =>
         call({ op: "close", code: seat.code, token: seat.token }),
 };

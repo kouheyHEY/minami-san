@@ -13,13 +13,10 @@ import {
     CARD_INFO,
     CARD_TYPES,
     FIELD_LIMIT,
-    MAX_PLAYERS,
-    MIN_PLAYERS,
     RULES,
     TARGET_SCORE,
     cardWeight,
     fieldCount,
-    viewFor,
     type Card,
     type CardType,
     type GameState,
@@ -27,9 +24,11 @@ import {
     type RuleKey,
 } from "../game/engine.js";
 import { gameActions, gameStore } from "../game/store.js";
-import { CARD_ORDER, CardArt } from "./CardArt.js";
-import { inviteUrl, normalizeRoomCode } from "../online/roomClient.js";
+import { inviteUrl, normalizeRoomCode, type RoomView } from "../online/roomClient.js";
 import { playSound, type SoundName } from "../audio/sound.js";
+import { CARD_ORDER, CardArt } from "./CardArt.js";
+
+type Seats = RoomView["seats"];
 
 function RuleSwitch() {
     const rule = useSelector(gameStore, (state) => state.rule);
@@ -123,62 +122,16 @@ function OnlineSetup() {
     );
 }
 
-function LocalSetup() {
-    const names = useSelector(gameStore, (state) => state.names);
-    return (
-        <>
-            <div className="player-inputs">
-                {names.map((name, index) => (
-                    <div key={index} className="player-input">
-                        <span>PLAYER {index + 1}</span>
-                        <input
-                            value={name}
-                            maxLength={16}
-                            onChange={(event) => gameActions.setName(index, event.target.value)}
-                            aria-label={`プレイヤー${index + 1}の名前`}
-                        />
-                        {names.length > MIN_PLAYERS && (
-                            <button
-                                type="button"
-                                className="remove-player"
-                                aria-label={`プレイヤー${index + 1}を外す`}
-                                onClick={() => gameActions.removePlayer(index)}
-                            >
-                                ×
-                            </button>
-                        )}
-                    </div>
-                ))}
-                {names.length < MAX_PLAYERS && (
-                    <button type="button" className="add-player" onClick={gameActions.addPlayer}>
-                        ＋ 人を増やす
-                    </button>
-                )}
-            </div>
-            <RuleSwitch />
-            <button className="primary-button start-button" onClick={gameActions.start}>
-                ゲームをはじめる <span aria-hidden="true">→</span>
-            </button>
-            <p className="setup-note">1台の端末を順番に回して遊びます。</p>
-        </>
-    );
-}
-
 function SetupScreen() {
-    const mode = useSelector(gameStore, (state) => state.mode);
-
     return (
         <main className="setup-page">
             <section className="hero-card">
-                <div className="mode-switch" role="group" aria-label="遊び方">
-                    <button aria-pressed={mode === "local"} onClick={() => gameActions.setMode("local")}>
-                        この端末で
-                    </button>
-                    <button aria-pressed={mode === "online"} onClick={() => gameActions.setMode("online")}>
-                        オンライン対戦
-                    </button>
+                <div className="setup-heading">
+                    <span className="section-index">ONLINE</span>
+                    <h1>部屋をつくって遊ぶ</h1>
+                    <p>2〜5人のオンライン対戦です。部屋にCPUを入れれば、1人でも遊べます。</p>
                 </div>
-                {mode === "online" ? <OnlineSetup /> : <LocalSetup />}
+                <OnlineSetup />
             </section>
 
             <aside className="setup-aside" aria-label="ゲームのポイント">
@@ -248,7 +201,7 @@ function WaitingScreen() {
                 <h1>{isHost ? "参加者を待っています" : "はじまるのを待っています"}</h1>
                 <p>
                     {isHost
-                        ? "部屋コードか招待リンクを送ってください。そろったら始めましょう。"
+                        ? "部屋コードか招待リンクを送ってください。CPUを入れて始めることもできます。"
                         : "部屋をつくった人が始めると、ゲームが始まります。"}
                 </p>
                 <strong className="room-code">{room.code}</strong>
@@ -256,11 +209,33 @@ function WaitingScreen() {
                     {room.seats.map((seat, index) => (
                         <li key={index}>
                             <span>{seat.name}</span>
+                            {seat.cpu && <small>CPU</small>}
                             {index === 0 && <small>ホスト</small>}
                             {index === room.seat && <small className="is-self">あなた</small>}
+                            {isHost && seat.cpu && (
+                                <button
+                                    type="button"
+                                    className="member-remove"
+                                    aria-label={`${seat.name}を外す`}
+                                    disabled={busy}
+                                    onClick={() => void gameActions.removeCpu(index)}
+                                >
+                                    ×
+                                </button>
+                            )}
                         </li>
                     ))}
                 </ol>
+                {isHost && count < room.seatCount && (
+                    <button
+                        type="button"
+                        className="add-player"
+                        disabled={busy}
+                        onClick={() => void gameActions.addCpu()}
+                    >
+                        ＋ CPUを入れる
+                    </button>
+                )}
                 <p className="member-count">
                     {count} / {room.seatCount}人
                 </p>
@@ -296,12 +271,23 @@ function WaitingScreen() {
     );
 }
 
-function Scoreboard({ game, selfIndex }: { game: GameState; selfIndex: number | null }) {
+function Scoreboard({
+    game,
+    seats,
+    selfIndex,
+    redrawing,
+}: {
+    game: GameState;
+    seats: Seats;
+    selfIndex: number | null;
+    redrawing: boolean;
+}) {
     return (
         <ol className="scoreboard" aria-label="得点">
             {game.players.map((player, index) => {
                 const turn = game.status === "playing" && game.currentPlayer === index;
                 const winner = game.status === "finished" && game.winners.includes(index);
+                const handCount = redrawing ? 0 : player.handCount;
                 return (
                     <li
                         key={player.id}
@@ -311,12 +297,16 @@ function Scoreboard({ game, selfIndex }: { game: GameState; selfIndex: number | 
                         <span className="score-name">
                             {player.name}
                             {index === selfIndex && <small>あなた</small>}
+                            {seats[index]?.cpu && <small className="is-cpu">CPU</small>}
                         </span>
                         <strong className="score-value">{player.score}</strong>
-                        <span className="score-hand" aria-label={`手札${player.handCount}枚`}>
-                            {Array.from({ length: player.handCount }, (_, card) => (
-                                <i key={card} />
-                            ))}
+                        <span
+                            className={`score-hand ${redrawing ? "is-empty" : ""}`}
+                            aria-label={`手札${handCount}枚`}
+                        >
+                            {redrawing
+                                ? "0枚"
+                                : Array.from({ length: handCount }, (_, card) => <i key={card} />)}
                         </span>
                     </li>
                 );
@@ -411,8 +401,8 @@ function CardTip({ type }: { type: CardType }) {
 // 触れたときに下の画面の「閉じる」処理へ届かないようにする（開いた直後に閉じてしまうため）。
 const keepTip = (event: { stopPropagation: () => void }) => event.stopPropagation();
 
-// 引いたカード・引き直したカードの演出。画面を描き直すたびに繰り返さないよう、見せたものを覚えておく。
-type CardEffect = { key: string; kind: "draw" | "redraw"; from?: CardType };
+// 引いたカードの演出。画面を描き直すたびに繰り返さないよう、見せたものを覚えておく。
+type CardEffect = { key: string; kind: "draw" | "redraw"; late?: boolean };
 const shownEffects = new Set<string>();
 
 function useFirstShow(effect?: CardEffect) {
@@ -424,20 +414,18 @@ function useFirstShow(effect?: CardEffect) {
     return first;
 }
 
-// 手札の各カードにつける演出。引いたカードは「NEW」、みなで引き直したカードは「引き直し」。
+// 手札の各カードにつける演出。手番で引いたカードは「NEW」、みなで引き直したカードは「引き直し」。
 function cardEffects(game: GameState, player: Player) {
     const effects = new Map<string, CardEffect>();
-    player.redraw?.to.forEach((card, index) => {
-        effects.set(card.id, {
-            key: `${game.matchId}:${card.id}:redraw`,
-            kind: "redraw",
-            from: player.redraw?.from[index]?.type,
-        });
+    player.redraw?.to.forEach((card) => {
+        effects.set(card.id, { key: `${game.matchId}:${card.id}:redraw`, kind: "redraw" });
     });
-    if (game.drawnCardId) {
+    if (game.drawnCardId && !effects.has(game.drawnCardId)) {
         effects.set(game.drawnCardId, {
             key: `${game.matchId}:${game.drawnCardId}:draw`,
             kind: "draw",
+            // 引き直したカードのあとに、手番の1枚が届く
+            late: player.redraw !== null,
         });
     }
     return effects;
@@ -459,7 +447,7 @@ function CardFace({
     const { openId, toggle } = useContext(TipContext);
     const info = CARD_INFO[card.type];
     const tipOpen = openId === card.id;
-    const animate = useFirstShow(effect) ? effect?.kind : null;
+    const animate = useFirstShow(effect);
     // 選べるカードは、1回目のタップで選んで説明を開く。選んだカードをもう一度タップすると説明を閉じる。
     const press = () => {
         if (!onSelect) return toggle(card.id);
@@ -474,7 +462,7 @@ function CardFace({
                 aria-checked={onSelect ? selected : undefined}
                 aria-expanded={tipOpen}
                 aria-label={`${info.label}：${info.text}`}
-                className={`card card-${card.type} ${selected ? "is-selected" : ""} ${animate ? `is-${animate}` : ""}`}
+                className={`card card-${card.type} ${selected ? "is-selected" : ""} ${animate ? "is-draw" : ""} ${animate && effect?.late ? "is-late" : ""}`}
                 onPointerDown={keepTip}
                 onClick={press}
             >
@@ -485,14 +473,9 @@ function CardFace({
                         {effect.kind === "draw" ? "NEW" : "引き直し"}
                     </em>
                 )}
-                {animate === "draw" && (
+                {animate && (
                     <span className="card-back" aria-hidden="true">
                         算
-                    </span>
-                )}
-                {animate === "redraw" && effect?.from && (
-                    <span className="card-old" aria-hidden="true">
-                        <CardArt type={effect.from} />
                     </span>
                 )}
             </button>
@@ -525,11 +508,32 @@ function FieldCard({ card, align }: { card: Card; align: TipAlign }) {
     );
 }
 
-function outcomeText(card: Card, after: number) {
-    if (after === 3) return "3枚目で+3点";
-    if (after === FIELD_LIMIT) return `7枚目で+${card.type === CARD_TYPES.MINAMI ? 10 : 7}点`;
-    if (after > FIELD_LIMIT) return "7を超えて得点なし";
-    return "";
+// みな：全員の手札がいったん0枚になり、それから引き直す。
+// 「clear」で持っていたカードが手札から出ていき、「empty」で0枚を見せ、そのあと引き直したカードが届く。
+type RedrawPhase = "clear" | "empty" | null;
+const REDRAW_CLEAR_MS = 550;
+const REDRAW_EMPTY_MS = 750;
+const redrawStarts = new Map<string, number>();
+
+function useRedrawPhase(game: GameState): RedrawPhase {
+    const [, rerender] = useState(0);
+    const key =
+        game.lastPlay?.cardType === CARD_TYPES.MINA && !game.lastPlay.discarded
+            ? `${game.matchId}:${game.lastPlay.id}`
+            : null;
+    // 描いた時点で始まりを決める（先に新しい手札を一瞬でも見せないように）。何度描いても同じ値になる。
+    if (key !== null && !redrawStarts.has(key)) redrawStarts.set(key, Date.now());
+    const elapsed = key === null ? Infinity : Date.now() - redrawStarts.get(key)!;
+    const phase: RedrawPhase =
+        elapsed < REDRAW_CLEAR_MS ? "clear" : elapsed < REDRAW_CLEAR_MS + REDRAW_EMPTY_MS ? "empty" : null;
+
+    useEffect(() => {
+        if (phase === null) return;
+        const until = phase === "clear" ? REDRAW_CLEAR_MS : REDRAW_CLEAR_MS + REDRAW_EMPTY_MS;
+        const timer = window.setTimeout(() => rerender((count) => count + 1), until - elapsed + 10);
+        return () => clearTimeout(timer);
+    });
+    return phase;
 }
 
 const cardNames = (cards: Card[]) =>
@@ -547,28 +551,78 @@ function RedrawNote({ redraw }: { redraw: NonNullable<Player["redraw"]> }) {
     );
 }
 
-function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: number; busy: boolean }) {
+// 引き直しの途中の手札。持っていたカードが出ていき、0枚になる。
+function RedrawingHand({ player, phase }: { player: Player; phase: Exclude<RedrawPhase, null> }) {
+    if (phase === "empty") {
+        return (
+            <div className="hand-empty" role="status">
+                <strong>手札 0枚</strong>
+                <span>全員が手札を捨てました。引き直します…</span>
+            </div>
+        );
+    }
+    return (
+        <div className="hand-cards is-redrawing" aria-hidden="true">
+            {(player.redraw?.from ?? []).map((card) => (
+                <div key={card.id} className={`card card-${card.type} is-discarding`}>
+                    <CardArt type={card.type} />
+                    <strong>{CARD_INFO[card.type].label}</strong>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function outcomeText(card: Card, after: number) {
+    if (after === 3) return "3枚目で+3点";
+    if (after === FIELD_LIMIT) return `7枚目で+${card.type === CARD_TYPES.MINAMI ? 10 : 7}点`;
+    if (after > FIELD_LIMIT) return "7を超えて得点なし";
+    return "";
+}
+
+function HandPanel({
+    game,
+    seats,
+    selfIndex,
+    busy,
+    redrawPhase,
+}: {
+    game: GameState;
+    seats: Seats;
+    selfIndex: number;
+    busy: boolean;
+    redrawPhase: RedrawPhase;
+}) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
     const player = game.players[selfIndex];
-    const selected = player.hand.find((card) => card.id === selectedId) ?? null;
     const effects = cardEffects(game, player);
+    const note = redrawPhase === null && player.redraw ? <RedrawNote redraw={player.redraw} /> : null;
 
     if (game.currentPlayer !== selfIndex) {
+        const current = game.players[game.currentPlayer];
         return (
             <section className="hand-panel is-waiting">
                 <div className="panel-kicker">WAITING</div>
-                <h2>{game.players[game.currentPlayer].name}の番です</h2>
+                <h2>
+                    {current.name}
+                    {seats[game.currentPlayer]?.cpu ? "が考えています…" : "の番です"}
+                </h2>
                 <p>あなたの手札</p>
-                {player.redraw && <RedrawNote redraw={player.redraw} />}
-                <div className="hand-cards">
-                    {player.hand.map((card) => (
-                        <CardFace key={card.id} card={card} align="start" effect={effects.get(card.id)} />
-                    ))}
-                </div>
+                {note}
+                {redrawPhase ? (
+                    <RedrawingHand player={player} phase={redrawPhase} />
+                ) : (
+                    <div className="hand-cards">
+                        {player.hand.map((card) => (
+                            <CardFace key={card.id} card={card} align="start" effect={effects.get(card.id)} />
+                        ))}
+                    </div>
+                )}
             </section>
         );
     }
 
+    const selected = redrawPhase ? null : (player.hand.find((card) => card.id === selectedId) ?? null);
     const count = fieldCount(game.field);
     const after = selected
         ? selected.type === CARD_TYPES.NAMI
@@ -581,25 +635,31 @@ function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: numb
         <section className={`hand-panel ${busy ? "is-busy" : ""}`} aria-busy={busy}>
             <div className="panel-kicker">YOUR TURN</div>
             <h2>1枚えらんで使う</h2>
-            {player.redraw && <RedrawNote redraw={player.redraw} />}
-            <div className="hand-cards" role="radiogroup" aria-label="手札">
-                {player.hand.map((card, index) => (
-                    <CardFace
-                        key={card.id}
-                        card={card}
-                        align={index === 0 ? "start" : "end"}
-                        effect={effects.get(card.id)}
-                        selected={card.id === selectedId}
-                        onSelect={() => setSelectedId(card.id)}
-                    />
-                ))}
-            </div>
+            {note}
+            {redrawPhase ? (
+                <RedrawingHand player={player} phase={redrawPhase} />
+            ) : (
+                <div className="hand-cards" role="radiogroup" aria-label="手札">
+                    {player.hand.map((card, index) => (
+                        <CardFace
+                            key={card.id}
+                            card={card}
+                            align={index === 0 ? "start" : "end"}
+                            effect={effects.get(card.id)}
+                            selected={card.id === selectedId}
+                            onSelect={() => setSelectedId(card.id)}
+                        />
+                    ))}
+                </div>
+            )}
             <p className="play-preview" aria-live="polite">
                 {selected && after !== null ? (
                     <>
                         出すと場は<b>{after}枚</b>
                         {outcome && <em className={after > FIELD_LIMIT ? "is-over" : ""}>{outcome}</em>}
                     </>
+                ) : redrawPhase ? (
+                    "引き直しています…"
                 ) : (
                     "カードをタップして選んでください。"
                 )}
@@ -626,24 +686,7 @@ function HandPanel({ game, selfIndex, busy }: { game: GameState; selfIndex: numb
     );
 }
 
-// この端末で遊ぶとき、次の人に端末を渡すまで手札を伏せる。
-function HandoffPanel({ game }: { game: GameState }) {
-    const next = game.players[game.currentPlayer];
-    return (
-        <section className="hand-panel handoff-panel">
-            <div className="panel-kicker">NEXT</div>
-            <h2>{next.name}の番</h2>
-            <p>{next.name}に端末を渡してください。</p>
-            <div className="action-buttons">
-                <button className="primary-button" onClick={gameActions.reveal}>
-                    手札を見る
-                </button>
-            </div>
-        </section>
-    );
-}
-
-function WinnerPanel({ game, online, busy }: { game: GameState; online: boolean; busy: boolean }) {
+function WinnerPanel({ game, busy }: { game: GameState; busy: boolean }) {
     const ranking = game.players
         .map((player, index) => ({ player, index }))
         .sort((a, b) => b.player.score - a.player.score);
@@ -671,12 +714,8 @@ function WinnerPanel({ game, online, busy }: { game: GameState; online: boolean;
                 <button className="primary-button" onClick={gameActions.playAgain} disabled={busy}>
                     もう一回
                 </button>
-                <button
-                    className="ghost-button"
-                    onClick={online ? dissolve : gameActions.reset}
-                    disabled={busy}
-                >
-                    {online ? "部屋を解散する" : "終わる"}
+                <button className="ghost-button" onClick={dissolve} disabled={busy}>
+                    部屋を解散する
                 </button>
             </div>
         </section>
@@ -841,28 +880,21 @@ function IntroModal({ rule }: { rule: RuleKey }) {
 
 function GameScreen() {
     const game = useSelector(gameStore, (state) => state.game);
-    if (!game) return null;
-    return <MatchScreen stored={game} />;
+    const room = useSelector(gameStore, (state) => state.online?.room);
+    if (!game || !room) return null;
+    return <MatchScreen game={game} room={room} />;
 }
 
-function MatchScreen({ stored }: { stored: GameState }) {
-    const online = useSelector(gameStore, (state) => state.online);
-    const handoff = useSelector(gameStore, (state) => state.handoff);
+function MatchScreen({ game, room }: { game: GameState; room: RoomView }) {
     const busy = useSelector(gameStore, (state) => state.busy);
     const error = useSelector(gameStore, (state) => state.error);
     const showIntro = useSelector(gameStore, (state) => state.showIntro);
-    const selfIndex = online ? online.room.seat : null;
-    // この端末で遊ぶときは、いま手札を見てよい人の目線で表示する。
-    const handSeat = online ? selfIndex : handoff ? null : stored.currentPlayer;
-    const game = useMemo(
-        () => (online ? stored : viewFor(stored, handSeat)),
-        [stored, online, handSeat],
-    );
+    const selfIndex = room.seat;
     useGameSounds(game, selfIndex);
     const burst = useBurst(game);
+    const redrawPhase = useRedrawPhase(game);
 
     const leave = () => {
-        if (!online) return gameActions.reset();
         if (window.confirm("部屋を解散すると、全員がこの部屋から出ます。解散しますか？")) {
             void gameActions.dissolveRoom();
         }
@@ -870,56 +902,66 @@ function MatchScreen({ stored }: { stored: GameState }) {
 
     return (
         <TipProvider>
-        <main className="game-page">
-            {showIntro && <IntroModal rule={game.rule} />}
-            <BurstOverlay burst={burst} />
-            <div className="game-toolbar">
-                <div>
-                    <span>{online ? `ONLINE · ROOM ${online.room.code}` : "LOCAL MATCH"}</span>
-                    <strong>
-                        {RULES[game.rule].label} · {TARGET_SCORE}点先取
-                    </strong>
+            <main className="game-page">
+                {showIntro && <IntroModal rule={game.rule} />}
+                <BurstOverlay burst={burst} />
+                <div className="game-toolbar">
+                    <div>
+                        <span>ROOM {room.code}</span>
+                        <strong>
+                            {RULES[game.rule].label} · {TARGET_SCORE}点先取
+                        </strong>
+                    </div>
+                    <button onClick={leave}>部屋を解散</button>
                 </div>
-                <button onClick={leave}>{online ? "部屋を解散" : "名前入力へ戻る"}</button>
-            </div>
-            {error && (
-                <p className="error-message game-error" role="alert">
-                    {error}
-                </p>
-            )}
-            <div className="match-layout">
-                <Scoreboard game={game} selfIndex={selfIndex} />
-                <FieldPanel game={game} />
-                <div className="action-area">
-                    <EventFeed events={game.log} />
-                    {game.status === "finished" ? (
-                        <WinnerPanel game={game} online={online !== null} busy={busy} />
-                    ) : handSeat === null ? (
-                        <HandoffPanel game={game} />
-                    ) : (
-                        <HandPanel
-                            key={`${game.matchId}-${game.lastPlay?.id ?? 0}-${game.round}`}
-                            game={game}
-                            selfIndex={handSeat}
-                            busy={busy}
-                        />
-                    )}
+                {error && (
+                    <p className="error-message game-error" role="alert">
+                        {error}
+                    </p>
+                )}
+                <div className="match-layout">
+                    <Scoreboard
+                        game={game}
+                        seats={room.seats}
+                        selfIndex={selfIndex}
+                        redrawing={redrawPhase !== null}
+                    />
+                    <FieldPanel game={game} />
+                    <div className="action-area">
+                        <EventFeed events={game.log} />
+                        {game.status === "finished" ? (
+                            <WinnerPanel game={game} busy={busy} />
+                        ) : selfIndex === null ? (
+                            <section className="hand-panel is-waiting">
+                                <h2>観戦中</h2>
+                                <p>この部屋の参加者ではありません。</p>
+                            </section>
+                        ) : (
+                            <HandPanel
+                                key={`${game.matchId}-${game.lastPlay?.id ?? 0}-${game.round}`}
+                                game={game}
+                                seats={room.seats}
+                                selfIndex={selfIndex}
+                                busy={busy}
+                                redrawPhase={redrawPhase}
+                            />
+                        )}
+                    </div>
+                    <details className="log-panel">
+                        <summary>
+                            <strong>LOG</strong>
+                            <small>{game.log[0]?.message}</small>
+                        </summary>
+                        <ol>
+                            {game.log.map((entry) => (
+                                <li key={entry.id} className={entry.tone}>
+                                    {entry.message}
+                                </li>
+                            ))}
+                        </ol>
+                    </details>
                 </div>
-                <details className="log-panel">
-                    <summary>
-                        <strong>LOG</strong>
-                        <small>{game.log[0]?.message}</small>
-                    </summary>
-                    <ol>
-                        {game.log.map((entry) => (
-                            <li key={entry.id} className={entry.tone}>
-                                {entry.message}
-                            </li>
-                        ))}
-                    </ol>
-                </details>
-            </div>
-        </main>
+            </main>
         </TipProvider>
     );
 }
