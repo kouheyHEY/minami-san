@@ -10,6 +10,8 @@ const CARD_ART: Partial<Record<CardType, string>> = { na, mi, mina, nami, minami
 
 export const CARD_ORDER = Object.keys(CARD_INFO) as CardType[]
 
+export const cardArtUrl = (type: CardType) => CARD_ART[type]
+
 export function CardArt({ type }: { type: CardType }) {
   const art = CARD_ART[type]
   if (!art) {

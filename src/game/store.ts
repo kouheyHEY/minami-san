@@ -16,9 +16,10 @@ import {
 import { loadSoundPreference, setSoundEnabled } from "../audio/sound.js";
 
 const OFFLINE_POLL_MS = 3000;
-// CPU の番は、直前の結果を見る間をおいてから進める。みなの引き直しは演出が長いので長めに待つ。
-const CPU_DELAY_MS = 1400;
+// CPU の番は、直前のカードの動きを見終わってから進める。引き直しや配り直しは動きが長いので長めに待つ。
+const CPU_DELAY_MS = 1600;
 const CPU_DELAY_AFTER_REDRAW_MS = 2800;
+const CPU_DELAY_AFTER_ROUND_MS = 2800;
 // 進める役の端末が止まっていても進むよう、ほかの参加者はこれだけ遅れて代わりに頼む。
 const CPU_BACKUP_DELAY_MS = 6000;
 
@@ -118,9 +119,12 @@ function scheduleCpu(retry = false) {
     if (game.status !== "playing" || !room.seats[game.currentPlayer]?.cpu) return;
 
     const driver = room.seats.findIndex((entry) => !entry.cpu);
-    const delay =
-        (game.lastPlay?.cardType === "mina" ? CPU_DELAY_AFTER_REDRAW_MS : CPU_DELAY_MS) +
-        (room.seat === driver ? 0 : CPU_BACKUP_DELAY_MS);
+    const base = game.lastPlay?.roundEnd
+        ? CPU_DELAY_AFTER_ROUND_MS
+        : game.lastPlay?.cardType === "mina"
+          ? CPU_DELAY_AFTER_REDRAW_MS
+          : CPU_DELAY_MS;
+    const delay = base + (room.seat === driver ? 0 : CPU_BACKUP_DELAY_MS);
     const version = room.version;
     cpuTimer = setTimeout(async () => {
         cpuTimer = null;

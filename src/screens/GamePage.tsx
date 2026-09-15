@@ -3,10 +3,12 @@ import {
     createContext,
     useContext,
     useEffect,
+    useLayoutEffect,
     useMemo,
     useRef,
     useState,
     type ReactNode,
+    type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 import {
@@ -26,7 +28,7 @@ import {
 import { gameActions, gameStore } from "../game/store.js";
 import { inviteUrl, normalizeRoomCode, type RoomView } from "../online/roomClient.js";
 import { playSound, type SoundName } from "../audio/sound.js";
-import { CARD_ORDER, CardArt } from "./CardArt.js";
+import { CARD_ORDER, CardArt, cardArtUrl } from "./CardArt.js";
 
 type Seats = RoomView["seats"];
 
@@ -271,97 +273,9 @@ function WaitingScreen() {
     );
 }
 
-function Scoreboard({
-    game,
-    seats,
-    selfIndex,
-    redrawing,
-}: {
-    game: GameState;
-    seats: Seats;
-    selfIndex: number | null;
-    redrawing: boolean;
-}) {
-    return (
-        <ol className="scoreboard" aria-label="得点">
-            {game.players.map((player, index) => {
-                const turn = game.status === "playing" && game.currentPlayer === index;
-                const winner = game.status === "finished" && game.winners.includes(index);
-                const handCount = redrawing ? 0 : player.handCount;
-                return (
-                    <li
-                        key={player.id}
-                        className={`score-card ${turn ? "is-turn" : ""} ${winner ? "is-winner" : ""}`}
-                        aria-current={turn ? "true" : undefined}
-                    >
-                        <span className="score-name">
-                            {player.name}
-                            {index === selfIndex && <small>あなた</small>}
-                            {seats[index]?.cpu && <small className="is-cpu">CPU</small>}
-                        </span>
-                        <strong className="score-value">{player.score}</strong>
-                        <span
-                            className={`score-hand ${redrawing ? "is-empty" : ""}`}
-                            aria-label={`手札${handCount}枚`}
-                        >
-                            {redrawing
-                                ? "0枚"
-                                : Array.from({ length: handCount }, (_, card) => <i key={card} />)}
-                        </span>
-                    </li>
-                );
-            })}
-        </ol>
-    );
-}
+// ---- カードの説明（タップで開く吹き出し） ----
 
-// 場。7つの枠に左から詰めて置き、3枠目と7枠目が得点になることを見せる。
-function FieldPanel({ game }: { game: GameState }) {
-    const count = fieldCount(game.field);
-    const emptySlots = Array.from(
-        { length: Math.max(0, FIELD_LIMIT - count) },
-        (_, index) => count + index + 1,
-    );
-    return (
-        <section className="field-panel" aria-label={`場 ${count}枚`}>
-            <div className="field-head">
-                <div className="field-count">
-                    <strong>{count}</strong>
-                    <span>/ {FIELD_LIMIT}枚</span>
-                </div>
-                <dl className="field-meta">
-                    <div>
-                        <dt>山札</dt>
-                        <dd>{game.deckCount}</dd>
-                    </div>
-                    <div>
-                        <dt>ラウンド</dt>
-                        <dd>
-                            {game.round}/{game.totalRounds}
-                        </dd>
-                    </div>
-                </dl>
-            </div>
-            <ol className="field-track">
-                {game.field.map((card, index) => (
-                    <FieldCard
-                        key={card.id}
-                        card={card}
-                        align={index < 2 ? "start" : index > 3 ? "end" : "center"}
-                    />
-                ))}
-                {emptySlots.map((slot) => (
-                    <li key={`slot-${slot}`} className={`field-slot slot-${slot}`}>
-                        {slot === 3 ? "+3" : slot === FIELD_LIMIT ? "+7" : ""}
-                    </li>
-                ))}
-            </ol>
-            {game.direction === -1 && <p className="direction-note">もも：手番の順が逆回り</p>}
-        </section>
-    );
-}
-
-// カードの説明の吹き出し。開けるのは画面全体で1つだけで、ほかの場所に触れたら閉じる。
+// 開けるのは画面全体で1つだけで、ほかの場所に触れたら閉じる。
 const TipContext = createContext<{
     openId: string | null;
     toggle: (id: string, open?: boolean) => void;
@@ -401,53 +315,32 @@ function CardTip({ type }: { type: CardType }) {
 // 触れたときに下の画面の「閉じる」処理へ届かないようにする（開いた直後に閉じてしまうため）。
 const keepTip = (event: { stopPropagation: () => void }) => event.stopPropagation();
 
-// 引いたカードの演出。画面を描き直すたびに繰り返さないよう、見せたものを覚えておく。
-type CardEffect = { key: string; kind: "draw" | "redraw"; late?: boolean };
-const shownEffects = new Set<string>();
-
-function useFirstShow(effect?: CardEffect) {
-    // 最初に表示したときに決めて固定する（途中で描き直しても演出が途切れないように）。
-    const [first] = useState(() => (effect ? !shownEffects.has(effect.key) : false));
-    useEffect(() => {
-        if (effect) shownEffects.add(effect.key);
-    }, [effect?.key]);
-    return first;
-}
-
-// 手札の各カードにつける演出。手番で引いたカードは「NEW」、みなで引き直したカードは「引き直し」。
-function cardEffects(game: GameState, player: Player) {
-    const effects = new Map<string, CardEffect>();
-    player.redraw?.to.forEach((card) => {
-        effects.set(card.id, { key: `${game.matchId}:${card.id}:redraw`, kind: "redraw" });
-    });
-    if (game.drawnCardId && !effects.has(game.drawnCardId)) {
-        effects.set(game.drawnCardId, {
-            key: `${game.matchId}:${game.drawnCardId}:draw`,
-            kind: "draw",
-            // 引き直したカードのあとに、手番の1枚が届く
-            late: player.redraw !== null,
-        });
-    }
-    return effects;
+// 手札のカードの印。手番で引いたカードは「NEW」、みなで引き直したカードは「引き直し」。
+function cardBadges(game: GameState, player: Player) {
+    const badges = new Map<string, "draw" | "redraw">();
+    player.redraw?.to.forEach((card) => badges.set(card.id, "redraw"));
+    if (game.drawnCardId && !badges.has(game.drawnCardId)) badges.set(game.drawnCardId, "draw");
+    return badges;
 }
 
 function CardFace({
     card,
     align,
-    effect,
+    badge,
+    pending = false,
     selected = false,
     onSelect,
 }: {
     card: Card;
     align: TipAlign;
-    effect?: CardEffect;
+    badge?: "draw" | "redraw";
+    pending?: boolean;
     selected?: boolean;
     onSelect?: () => void;
 }) {
     const { openId, toggle } = useContext(TipContext);
     const info = CARD_INFO[card.type];
     const tipOpen = openId === card.id;
-    const animate = useFirstShow(effect);
     // 選べるカードは、1回目のタップで選んで説明を開く。選んだカードをもう一度タップすると説明を閉じる。
     const press = () => {
         if (!onSelect) return toggle(card.id);
@@ -458,25 +351,21 @@ function CardFace({
         <div className={`card-slot tip-${align} ${tipOpen ? "is-tip-open" : ""}`}>
             <button
                 type="button"
+                data-card={card.id}
                 role={onSelect ? "radio" : undefined}
                 aria-checked={onSelect ? selected : undefined}
                 aria-expanded={tipOpen}
                 aria-label={`${info.label}：${info.text}`}
-                className={`card card-${card.type} ${selected ? "is-selected" : ""} ${animate ? "is-draw" : ""} ${animate && effect?.late ? "is-late" : ""}`}
+                className={`card card-${card.type} ${selected ? "is-selected" : ""} ${pending ? "is-pending" : ""}`}
                 onPointerDown={keepTip}
                 onClick={press}
             >
                 <CardArt type={card.type} />
                 <strong>{info.label}</strong>
-                {effect && (
-                    <em className={effect.kind === "redraw" ? "is-redraw" : ""}>
-                        {effect.kind === "draw" ? "NEW" : "引き直し"}
+                {badge && (
+                    <em className={badge === "redraw" ? "is-redraw" : ""}>
+                        {badge === "draw" ? "NEW" : "引き直し"}
                     </em>
-                )}
-                {animate && (
-                    <span className="card-back" aria-hidden="true">
-                        算
-                    </span>
                 )}
             </button>
             <CardTip type={card.type} />
@@ -495,6 +384,7 @@ function FieldCard({ card, align }: { card: Card; align: TipAlign }) {
         >
             <button
                 type="button"
+                data-card={card.id}
                 className={`field-card card-${card.type}`}
                 aria-expanded={tipOpen}
                 aria-label={`${info.label}：${info.text}`}
@@ -508,17 +398,391 @@ function FieldCard({ card, align }: { card: Card; align: TipAlign }) {
     );
 }
 
-// みな：全員の手札がいったん0枚になり、それから引き直す。
-// 「clear」で持っていたカードが手札から出ていき、「empty」で0枚を見せ、そのあと引き直したカードが届く。
+// ---- 卓 ----
+
+// ほかの人の席。名前・手札の枚数（裏向きのカード）・得点を小さく並べる。自分の次の人から順に並べる。
+function Opponents({
+    game,
+    seats,
+    selfIndex,
+    redrawing,
+}: {
+    game: GameState;
+    seats: Seats;
+    selfIndex: number;
+    redrawing: boolean;
+}) {
+    const size = game.players.length;
+    const order = Array.from({ length: size - 1 }, (_, step) => (selfIndex + 1 + step) % size);
+    return (
+        <ol className="seats" aria-label="ほかの人">
+            {order.map((index) => {
+                const player = game.players[index];
+                const turn = game.status === "playing" && game.currentPlayer === index;
+                const winner = game.status === "finished" && game.winners.includes(index);
+                const count = redrawing ? 0 : player.handCount;
+                return (
+                    <li
+                        key={player.id}
+                        data-anchor={`seat-${index}`}
+                        className={`seat ${turn ? "is-turn" : ""} ${winner ? "is-winner" : ""}`}
+                        aria-current={turn ? "true" : undefined}
+                    >
+                        <span className="seat-name">
+                            {player.name}
+                            {seats[index]?.cpu && <small>CPU</small>}
+                        </span>
+                        <span className="seat-score">{player.score}点</span>
+                        <span className="seat-hand" data-anchor={`hand-${index}`} aria-label={`手札${count}枚`}>
+                            {Array.from({ length: count }, (_, card) => (
+                                <i key={card} className="mini-back" />
+                            ))}
+                            {count === 0 && <em>0枚</em>}
+                        </span>
+                    </li>
+                );
+            })}
+        </ol>
+    );
+}
+
+// 真ん中の卓。山札と捨て札を並べ、その下にカードを並べる場。
+function Table({ game }: { game: GameState }) {
+    const count = fieldCount(game.field);
+    const emptySlots = Array.from(
+        { length: Math.max(0, FIELD_LIMIT - count) },
+        (_, index) => count + index + 1,
+    );
+    return (
+        <section className="table" data-anchor="table" aria-label={`場 ${count}枚`}>
+            <div className="table-top">
+                <div
+                    className={`pile deck ${game.deckCount === 0 ? "is-empty" : ""}`}
+                    data-anchor="deck"
+                    aria-label={`山札 残り${game.deckCount}枚`}
+                >
+                    <b>{game.deckCount}</b>
+                    <small>山札</small>
+                </div>
+                <div className="table-info">
+                    <strong>
+                        {count}
+                        <span>/ {FIELD_LIMIT}</span>
+                    </strong>
+                    <span
+                        className={`direction ${game.direction === -1 ? "is-reversed" : ""}`}
+                        data-anchor="direction"
+                    >
+                        {game.direction === -1 ? "↺ 逆回り" : "↻ 順番"}
+                    </span>
+                </div>
+                <div className="pile discard" data-anchor="discard" aria-label={`捨て札 ${game.discardCount}枚`}>
+                    <b>{game.discardCount}</b>
+                    <small>捨て札</small>
+                </div>
+            </div>
+            <ol className="field-track">
+                {game.field.map((card, index) => (
+                    <FieldCard
+                        key={card.id}
+                        card={card}
+                        align={index < 2 ? "start" : index > 3 ? "end" : "center"}
+                    />
+                ))}
+                {emptySlots.map((slot) => (
+                    <li key={`slot-${slot}`} data-slot={slot} className={`field-slot slot-${slot}`}>
+                        {slot === 3 ? "+3" : slot === FIELD_LIMIT ? "+7" : ""}
+                    </li>
+                ))}
+            </ol>
+        </section>
+    );
+}
+
+// ---- カードの動き ----
+// 状態が変わったら、前の画面でカードがあった位置と、新しい画面で置かれる位置を測り、
+// そのあいだを飛ぶカードを重ねて描く。飛んでいる間は、行き先のカードを隠しておく。
+
+const FLY_MS = 380;
+const HOLD_MS = 220;
+// みな：持っていたカードが捨て札へ飛び（clear）、手札0枚を見せ（empty）、山札から引き直す。
+const REDRAW_CLEAR_MS = 850;
+const REDRAW_EMPTY_MS = 650;
+
+type Rects = Map<string, DOMRect>;
+type Snapshot = { game: GameState; rects: Rects };
+
+const prefersReducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+function measure(root: HTMLElement): Rects {
+    const rects: Rects = new Map();
+    root.querySelectorAll<HTMLElement>("[data-card], [data-anchor], [data-slot]").forEach((element) => {
+        const { card, anchor, slot } = element.dataset;
+        const key = card ? `card:${card}` : anchor ? `anchor:${anchor}` : `slot:${slot}`;
+        rects.set(key, element.getBoundingClientRect());
+    });
+    return rects;
+}
+
+// ほかの人の手札の位置に、小さなカードの大きさの枠をとる。
+function cardBox(rect: DOMRect | undefined, width = 26, height = 36) {
+    if (!rect) return undefined;
+    return new DOMRect(rect.left + rect.width / 2 - width / 2, rect.top + rect.height / 2 - height / 2, width, height);
+}
+
+function flyCard(
+    layer: HTMLElement,
+    {
+        from,
+        to,
+        type,
+        delay = 0,
+        target,
+        onLand,
+    }: {
+        from?: DOMRect;
+        to?: DOMRect;
+        type?: CardType;
+        delay?: number;
+        target?: HTMLElement | null;
+        onLand?: () => void;
+    },
+) {
+    if (!from || !to) return;
+    const card = document.createElement("div");
+    // 種類がわかるカードは表向き、山札から引くカードやほかの人の手札は裏向きで飛ばす。
+    card.className = type ? `flying-card card-${type}` : "flying-card is-back";
+    if (type) {
+        const url = cardArtUrl(type);
+        const face = document.createElement(url ? "img" : "span");
+        if (face instanceof HTMLImageElement) face.src = url!;
+        else face.textContent = CARD_INFO[type].label;
+        card.append(face);
+    }
+    Object.assign(card.style, {
+        left: `${to.left}px`,
+        top: `${to.top}px`,
+        width: `${to.width}px`,
+        height: `${to.height}px`,
+    });
+    const dx = from.left + from.width / 2 - (to.left + to.width / 2);
+    const dy = from.top + from.height / 2 - (to.top + to.height / 2);
+    const scale = Math.max(0.15, from.width / Math.max(1, to.width));
+    if (target) target.style.visibility = "hidden";
+    layer.append(card);
+    const animation = card.animate(
+        [{ transform: `translate(${dx}px, ${dy}px) scale(${scale})` }, { transform: "none" }],
+        { duration: FLY_MS, delay, easing: "cubic-bezier(.2, .8, .2, 1)", fill: "backwards" },
+    );
+    let finished = false;
+    const done = () => {
+        if (finished) return;
+        finished = true;
+        card.remove();
+        if (target) target.style.visibility = "";
+        onLand?.();
+    };
+    animation.onfinish = done;
+    animation.oncancel = done;
+}
+
+// うさぎの「スキップ」や、ももの「逆回り」を、その場所にポンと出す。
+function stamp(layer: HTMLElement, rect: DOMRect | undefined, text: string, variant: string, delay: number) {
+    if (!rect) return;
+    const element = document.createElement("div");
+    element.className = `stamp is-${variant}`;
+    element.textContent = text;
+    element.style.left = `${rect.left + rect.width / 2}px`;
+    element.style.top = `${rect.top + rect.height / 2}px`;
+    layer.append(element);
+    const animation = element.animate(
+        [
+            { transform: "translate(-50%, -50%) scale(.3) rotate(-8deg)", opacity: 0 },
+            { transform: "translate(-50%, -50%) scale(1.15) rotate(3deg)", opacity: 1, offset: 0.18 },
+            { transform: "translate(-50%, -50%) scale(1) rotate(0)", opacity: 1, offset: 0.78 },
+            { transform: "translate(-50%, -70%) scale(1)", opacity: 0 },
+        ],
+        { duration: 1150, delay, easing: "ease-out", fill: "both" },
+    );
+    animation.onfinish = () => element.remove();
+    animation.oncancel = () => element.remove();
+}
+
+function planMotion(
+    root: HTMLElement,
+    layer: HTMLElement,
+    before: Snapshot,
+    game: GameState,
+    selfIndex: number,
+) {
+    const record = game.lastPlay;
+    if (!record) return;
+    const prev = before.game;
+    const find = (selector: string) => root.querySelector<HTMLElement>(selector);
+    const anchor = (name: string) =>
+        find(`[data-anchor="${name}"]`)?.getBoundingClientRect() ?? before.rects.get(`anchor:${name}`);
+    const cardRect = (id: string) => find(`[data-card="${id}"]`)?.getBoundingClientRect();
+    const handOf = (seat: number) => cardBox(anchor(`hand-${seat}`));
+    const deck = anchor("deck");
+    const discard = anchor("discard");
+    const played = !record.discarded;
+    const roundReset = record.roundEnd !== null && game.round !== prev.round;
+    const prevFieldIds = new Set(prev.field.map((card) => card.id));
+    const placed = played ? game.field.find((card) => !prevFieldIds.has(card.id)) : undefined;
+
+    // 1. 出したカード：自分なら手札の位置から、ほかの人ならその人の席から、場か捨て札へ
+    let from: DOMRect | undefined;
+    if (record.player === selfIndex) {
+        const nextIds = new Set(game.players[selfIndex].hand.map((card) => card.id));
+        const used = prev.players[selfIndex].hand.find((card) =>
+            placed ? card.id === placed.id : card.type === record.cardType && !nextIds.has(card.id),
+        );
+        from = used && before.rects.get(`card:${used.id}`);
+    }
+    from ??= handOf(record.player);
+    const placedElement = placed ? find(`[data-card="${placed.id}"]`) : null;
+    const landing = !played
+        ? discard
+        : placedElement
+          ? placedElement.getBoundingClientRect()
+          : before.rects.get(`slot:${fieldCount(prev.field) + 1}`);
+
+    // なみ：前の場のカードを捨て札へ流してから置く
+    if (played && record.cardType === CARD_TYPES.NAMI) {
+        prev.field.forEach((card, index) =>
+            flyCard(layer, { from: before.rects.get(`card:${card.id}`), to: discard, type: card.type, delay: index * 30 }),
+        );
+    }
+    flyCard(layer, {
+        from,
+        to: landing,
+        type: record.cardType,
+        target: placedElement,
+        delay: played && record.cardType === CARD_TYPES.NAMI ? 140 : 0,
+        // ラウンドが終わったときは、置いたカードも少し見せてから捨て札へ
+        onLand: roundReset && played
+            ? () => flyCard(layer, { from: landing, to: discard, type: record.cardType, delay: HOLD_MS })
+            : undefined,
+    });
+    let time = FLY_MS + 60;
+
+    if (!roundReset && record.skipped !== null) {
+        stamp(layer, anchor(`seat-${record.skipped}`), "スキップ", "skip", time - 120);
+    }
+    if (!roundReset && record.reversed) {
+        stamp(layer, anchor("direction"), game.direction === -1 ? "↺ 逆回り" : "↻ 元の向き", "reverse", time - 120);
+    }
+
+    // 2. ラウンドが終わったら、場のカードを捨て札へ
+    if (roundReset) {
+        time += HOLD_MS;
+        prev.field.forEach((card, index) =>
+            flyCard(layer, { from: before.rects.get(`card:${card.id}`), to: discard, type: card.type, delay: time + index * 30 }),
+        );
+        time += FLY_MS + 120;
+    }
+
+    // 3. みな：全員の手札を捨て札へ飛ばし、0枚にしてから、山札から引き直す
+    if (played && !roundReset && record.cardType === CARD_TYPES.MINA) {
+        stamp(layer, anchor("table"), "全員引き直し", "mina", time - 120);
+        game.players.forEach((player, seat) => {
+            if (seat === selfIndex) {
+                prev.players[seat].hand
+                    .filter((card) => card.id !== placed?.id)
+                    .forEach((card, index) =>
+                        flyCard(layer, {
+                            from: before.rects.get(`card:${card.id}`),
+                            to: discard,
+                            type: card.type,
+                            delay: time + index * 40,
+                        }),
+                    );
+            } else {
+                const count = Math.max(0, prev.players[seat].handCount - (seat === record.player ? 1 : 0));
+                for (let index = 0; index < count; index += 1) {
+                    flyCard(layer, { from: handOf(seat), to: discard, delay: time + index * 40 });
+                }
+            }
+        });
+        const drawAt = REDRAW_CLEAR_MS + REDRAW_EMPTY_MS - FLY_MS;
+        game.players.forEach((player, seat) => {
+            if (seat === selfIndex) {
+                (player.redraw?.to ?? []).forEach((card, index) => {
+                    const element = find(`[data-card="${card.id}"]`);
+                    flyCard(layer, { from: deck, to: cardRect(card.id), target: element, delay: drawAt + index * 60 });
+                });
+            } else {
+                // 引き直す枚数は、捨てた枚数と同じ
+                const count = Math.max(0, prev.players[seat].handCount - (seat === record.player ? 1 : 0));
+                for (let index = 0; index < count; index += 1) {
+                    flyCard(layer, { from: deck, to: handOf(seat), delay: drawAt + index * 60 });
+                }
+            }
+        });
+        time = REDRAW_CLEAR_MS + REDRAW_EMPTY_MS + 80;
+    }
+
+    // 4. 新しいラウンドは、山札から1人1枚ずつ配る
+    if (roundReset && game.status === "playing") {
+        game.players.forEach((player, seat) => {
+            const delay = time + seat * 70;
+            if (seat === selfIndex) {
+                const dealt = player.hand.find((card) => card.id !== game.drawnCardId);
+                const element = dealt ? find(`[data-card="${dealt.id}"]`) : null;
+                flyCard(layer, { from: deck, to: element?.getBoundingClientRect(), target: element, delay });
+            } else {
+                flyCard(layer, { from: deck, to: handOf(seat), delay });
+            }
+        });
+        time += game.players.length * 70 + FLY_MS;
+    }
+
+    // 5. 番が来た人が、山札から1枚引く
+    if (game.status === "playing") {
+        const drawer = game.currentPlayer;
+        if (drawer === selfIndex && game.drawnCardId) {
+            const element = find(`[data-card="${game.drawnCardId}"]`);
+            flyCard(layer, { from: deck, to: element?.getBoundingClientRect(), target: element, delay: time });
+        } else if (drawer !== selfIndex) {
+            flyCard(layer, { from: deck, to: handOf(drawer), delay: time });
+        }
+    }
+}
+
+function useTableMotion(
+    rootRef: RefObject<HTMLElement | null>,
+    layerRef: RefObject<HTMLDivElement | null>,
+    game: GameState,
+    selfIndex: number | null,
+) {
+    const snapshot = useRef<Snapshot | null>(null);
+    // 描いた直後（画面に出る前）に、前の位置から動きを組み立て、今の位置を覚えておく。
+    useLayoutEffect(() => {
+        const root = rootRef.current;
+        const layer = layerRef.current;
+        if (!root || !layer) return;
+        const before = snapshot.current;
+        if (
+            before &&
+            selfIndex !== null &&
+            before.game.matchId === game.matchId &&
+            playKey(before.game) !== playKey(game) &&
+            !prefersReducedMotion()
+        ) {
+            planMotion(root, layer, before, game, selfIndex);
+        }
+        snapshot.current = { game, rects: measure(root) };
+    });
+}
+
+// みな：全員の手札が0枚に見える時間。得点表の枚数と自分の手札を0枚にする。
 type RedrawPhase = "clear" | "empty" | null;
-const REDRAW_CLEAR_MS = 550;
-const REDRAW_EMPTY_MS = 750;
 const redrawStarts = new Map<string, number>();
 
 function useRedrawPhase(game: GameState): RedrawPhase {
     const [, rerender] = useState(0);
     const key =
-        game.lastPlay?.cardType === CARD_TYPES.MINA && !game.lastPlay.discarded
+        game.lastPlay?.cardType === CARD_TYPES.MINA && !game.lastPlay.discarded && game.lastPlay.roundEnd === null
             ? `${game.matchId}:${game.lastPlay.id}`
             : null;
     // 描いた時点で始まりを決める（先に新しい手札を一瞬でも見せないように）。何度描いても同じ値になる。
@@ -536,6 +800,8 @@ function useRedrawPhase(game: GameState): RedrawPhase {
     return phase;
 }
 
+// ---- 自分の手札 ----
+
 const cardNames = (cards: Card[]) =>
     cards.length > 0 ? cards.map((card) => CARD_INFO[card.type].label).join("・") : "なし";
 
@@ -551,28 +817,6 @@ function RedrawNote({ redraw }: { redraw: NonNullable<Player["redraw"]> }) {
     );
 }
 
-// 引き直しの途中の手札。持っていたカードが出ていき、0枚になる。
-function RedrawingHand({ player, phase }: { player: Player; phase: Exclude<RedrawPhase, null> }) {
-    if (phase === "empty") {
-        return (
-            <div className="hand-empty" role="status">
-                <strong>手札 0枚</strong>
-                <span>全員が手札を捨てました。引き直します…</span>
-            </div>
-        );
-    }
-    return (
-        <div className="hand-cards is-redrawing" aria-hidden="true">
-            {(player.redraw?.from ?? []).map((card) => (
-                <div key={card.id} className={`card card-${card.type} is-discarding`}>
-                    <CardArt type={card.type} />
-                    <strong>{CARD_INFO[card.type].label}</strong>
-                </div>
-            ))}
-        </div>
-    );
-}
-
 function outcomeText(card: Card, after: number) {
     if (after === 3) return "3枚目で+3点";
     if (after === FIELD_LIMIT) return `7枚目で+${card.type === CARD_TYPES.MINAMI ? 10 : 7}点`;
@@ -580,7 +824,7 @@ function outcomeText(card: Card, after: number) {
     return "";
 }
 
-function HandPanel({
+function MyArea({
     game,
     seats,
     selfIndex,
@@ -594,94 +838,88 @@ function HandPanel({
     redrawPhase: RedrawPhase;
 }) {
     const [selectedId, setSelectedId] = useState<string | null>(null);
-    const player = game.players[selfIndex];
-    const effects = cardEffects(game, player);
-    const note = redrawPhase === null && player.redraw ? <RedrawNote redraw={player.redraw} /> : null;
-
-    if (game.currentPlayer !== selfIndex) {
-        const current = game.players[game.currentPlayer];
-        return (
-            <section className="hand-panel is-waiting">
-                <div className="panel-kicker">WAITING</div>
-                <h2>
-                    {current.name}
-                    {seats[game.currentPlayer]?.cpu ? "が考えています…" : "の番です"}
-                </h2>
-                <p>あなたの手札</p>
-                {note}
-                {redrawPhase ? (
-                    <RedrawingHand player={player} phase={redrawPhase} />
-                ) : (
-                    <div className="hand-cards">
-                        {player.hand.map((card) => (
-                            <CardFace key={card.id} card={card} align="start" effect={effects.get(card.id)} />
-                        ))}
-                    </div>
-                )}
-            </section>
-        );
-    }
-
-    const selected = redrawPhase ? null : (player.hand.find((card) => card.id === selectedId) ?? null);
+    const me = game.players[selfIndex];
+    const current = game.players[game.currentPlayer];
+    const isTurn = game.status === "playing" && game.currentPlayer === selfIndex;
+    const redrawing = redrawPhase !== null;
+    const badges = cardBadges(game, me);
+    const selected = isTurn && !redrawing ? (me.hand.find((card) => card.id === selectedId) ?? null) : null;
     const count = fieldCount(game.field);
-    const after = selected
-        ? selected.type === CARD_TYPES.NAMI
-            ? 1
-            : count + cardWeight(selected)
-        : null;
+    const after = selected ? (selected.type === CARD_TYPES.NAMI ? 1 : count + cardWeight(selected)) : null;
     const outcome = selected && after !== null ? outcomeText(selected, after) : "";
 
     return (
-        <section className={`hand-panel ${busy ? "is-busy" : ""}`} aria-busy={busy}>
-            <div className="panel-kicker">YOUR TURN</div>
-            <h2>1枚えらんで使う</h2>
-            {note}
-            {redrawPhase ? (
-                <RedrawingHand player={player} phase={redrawPhase} />
-            ) : (
-                <div className="hand-cards" role="radiogroup" aria-label="手札">
-                    {player.hand.map((card, index) => (
-                        <CardFace
-                            key={card.id}
-                            card={card}
-                            align={index === 0 ? "start" : "end"}
-                            effect={effects.get(card.id)}
-                            selected={card.id === selectedId}
-                            onSelect={() => setSelectedId(card.id)}
-                        />
-                    ))}
-                </div>
-            )}
-            <p className="play-preview" aria-live="polite">
-                {selected && after !== null ? (
-                    <>
-                        出すと場は<b>{after}枚</b>
-                        {outcome && <em className={after > FIELD_LIMIT ? "is-over" : ""}>{outcome}</em>}
-                    </>
-                ) : redrawPhase ? (
-                    "引き直しています…"
-                ) : (
-                    "カードをタップして選んでください。"
-                )}
-            </p>
-            <div className="action-buttons">
-                <button
-                    className="primary-button"
-                    disabled={!selected || busy}
-                    onClick={() => selected && gameActions.play(selected.id)}
-                >
-                    {selected ? `「${CARD_INFO[selected.type].label}」を場に出す` : "場に出す"}
-                </button>
-                {selected?.type === CARD_TYPES.NA && (
-                    <button
-                        className="ghost-button"
-                        disabled={busy}
-                        onClick={() => gameActions.play(selected.id, true)}
-                    >
-                        捨てる
-                    </button>
+        <section
+            className={`my-area ${isTurn ? "is-turn" : ""} ${busy ? "is-busy" : ""}`}
+            data-anchor={`seat-${selfIndex}`}
+            aria-busy={busy}
+        >
+            <div className="my-head">
+                <span className="my-name">{me.name}</span>
+                <span className="my-score">{me.score}点</span>
+                <span className="my-status">
+                    {isTurn
+                        ? "あなたの番"
+                        : `${current.name}${seats[game.currentPlayer]?.cpu ? "が考えています…" : "の番"}`}
+                </span>
+            </div>
+            {!redrawing && me.redraw && <RedrawNote redraw={me.redraw} />}
+            <div
+                className="hand-cards"
+                data-anchor={`hand-${selfIndex}`}
+                role={isTurn ? "radiogroup" : undefined}
+                aria-label="あなたの手札"
+            >
+                {me.hand.map((card, index) => (
+                    <CardFace
+                        key={card.id}
+                        card={card}
+                        align={index === 0 ? "start" : "end"}
+                        badge={badges.get(card.id)}
+                        pending={redrawing}
+                        selected={card.id === selectedId}
+                        onSelect={isTurn ? () => setSelectedId(card.id) : undefined}
+                    />
+                ))}
+                {redrawing && (
+                    <div className="hand-zero" role="status">
+                        <strong>手札 0枚</strong>
+                        <span>全員が引き直しています…</span>
+                    </div>
                 )}
             </div>
+            {isTurn && (
+                <>
+                    <p className="play-preview" aria-live="polite">
+                        {selected && after !== null ? (
+                            <>
+                                出すと場は<b>{after}枚</b>
+                                {outcome && <em className={after > FIELD_LIMIT ? "is-over" : ""}>{outcome}</em>}
+                            </>
+                        ) : (
+                            "カードをタップして選んでください。"
+                        )}
+                    </p>
+                    <div className="action-buttons">
+                        <button
+                            className="primary-button"
+                            disabled={!selected || busy}
+                            onClick={() => selected && gameActions.play(selected.id)}
+                        >
+                            {selected ? `「${CARD_INFO[selected.type].label}」を場に出す` : "場に出す"}
+                        </button>
+                        {selected?.type === CARD_TYPES.NA && (
+                            <button
+                                className="ghost-button"
+                                disabled={busy}
+                                onClick={() => gameActions.play(selected.id, true)}
+                            >
+                                捨てる
+                            </button>
+                        )}
+                    </div>
+                </>
+            )}
         </section>
     );
 }
@@ -698,8 +936,8 @@ function WinnerPanel({ game, busy }: { game: GameState; busy: boolean }) {
     };
 
     return (
-        <section className="hand-panel winner-panel" role="status">
-            <div className="panel-kicker">WINNER</div>
+        <section className="my-area winner-panel" role="status">
+            <span className="section-index">WINNER</span>
             <h2>{winners.map((player) => player.name).join("・")}</h2>
             <p>{winners.length > 1 ? "同点で勝利" : `${winners[0]?.score ?? 0}点で勝利`}</p>
             <ol className="ranking">
@@ -722,16 +960,17 @@ function WinnerPanel({ game, busy }: { game: GameState; busy: boolean }) {
     );
 }
 
-// 直近の出来事。操作パネルのすぐ上に、高さを固定して並べる。
-function EventFeed({ events }: { events: GameState["log"] }) {
+// 直近の出来事を1行だけ。
+function EventLine({ events }: { events: GameState["log"] }) {
+    const latest = events[0];
     return (
-        <div className="event-feed" aria-live="polite">
-            {events.slice(0, 2).map((event, index) => (
-                <p key={event.id} className={`event-line ${event.tone} ${index === 0 ? "is-latest" : ""}`}>
-                    {event.message}
-                </p>
-            ))}
-        </div>
+        <p className="event-line" aria-live="polite">
+            {latest && (
+                <span key={latest.id} className={latest.tone}>
+                    {latest.message}
+                </span>
+            )}
+        </p>
     );
 }
 
@@ -742,7 +981,7 @@ type Burst = { key: string; kind: "three" | "seven" | "over"; title: string; det
 const playKey = (game: GameState) =>
     game.lastPlay ? `${game.matchId}:${game.lastPlay.id}` : null;
 
-// 3点・7点・7超えのときに大きく見せる。開いた直後（読み込み直し）は見せない。
+// 3点・7点・7超えのときに大きく見せる。カードが場に着いてから出す。開いた直後（読み込み直し）は見せない。
 function useBurst(game: GameState) {
     const [burst, setBurst] = useState<Burst | null>(null);
     const seen = useRef<string | null | undefined>(undefined);
@@ -765,8 +1004,8 @@ function useBurst(game: GameState) {
                     ? { key, kind: "over", title: String(record.count), detail: "7を超えた… 得点なし" }
                     : null;
         if (!next) return;
-        setBurst(next);
-        window.setTimeout(() => setBurst((shown) => (shown?.key === key ? null : shown)), BURST_MS);
+        window.setTimeout(() => setBurst(next), FLY_MS);
+        window.setTimeout(() => setBurst((shown) => (shown?.key === key ? null : shown)), FLY_MS + BURST_MS);
     }, [key]);
 
     return burst;
@@ -890,7 +1129,10 @@ function MatchScreen({ game, room }: { game: GameState; room: RoomView }) {
     const error = useSelector(gameStore, (state) => state.error);
     const showIntro = useSelector(gameStore, (state) => state.showIntro);
     const selfIndex = room.seat;
+    const rootRef = useRef<HTMLElement>(null);
+    const layerRef = useRef<HTMLDivElement>(null);
     useGameSounds(game, selfIndex);
+    useTableMotion(rootRef, layerRef, game, selfIndex);
     const burst = useBurst(game);
     const redrawPhase = useRedrawPhase(game);
 
@@ -902,42 +1144,36 @@ function MatchScreen({ game, room }: { game: GameState; room: RoomView }) {
 
     return (
         <TipProvider>
-            <main className="game-page">
+            <main className="game-page" ref={rootRef}>
                 {showIntro && <IntroModal rule={game.rule} />}
                 <BurstOverlay burst={burst} />
                 <div className="game-toolbar">
-                    <div>
-                        <span>ROOM {room.code}</span>
-                        <strong>
-                            {RULES[game.rule].label} · {TARGET_SCORE}点先取
-                        </strong>
-                    </div>
+                    <span>
+                        ROOM {room.code} · ラウンド {game.round}/{game.totalRounds} · {TARGET_SCORE}点先取
+                    </span>
                     <button onClick={leave}>部屋を解散</button>
                 </div>
                 {error && (
-                    <p className="error-message game-error" role="alert">
+                    <p className="error-message" role="alert">
                         {error}
                     </p>
                 )}
-                <div className="match-layout">
-                    <Scoreboard
-                        game={game}
-                        seats={room.seats}
-                        selfIndex={selfIndex}
-                        redrawing={redrawPhase !== null}
-                    />
-                    <FieldPanel game={game} />
-                    <div className="action-area">
-                        <EventFeed events={game.log} />
+                {selfIndex === null ? (
+                    <p className="error-message">この部屋の参加者ではありません。</p>
+                ) : (
+                    <>
+                        <Opponents
+                            game={game}
+                            seats={room.seats}
+                            selfIndex={selfIndex}
+                            redrawing={redrawPhase !== null}
+                        />
+                        <Table game={game} />
+                        <EventLine events={game.log} />
                         {game.status === "finished" ? (
                             <WinnerPanel game={game} busy={busy} />
-                        ) : selfIndex === null ? (
-                            <section className="hand-panel is-waiting">
-                                <h2>観戦中</h2>
-                                <p>この部屋の参加者ではありません。</p>
-                            </section>
                         ) : (
-                            <HandPanel
+                            <MyArea
                                 key={`${game.matchId}-${game.lastPlay?.id ?? 0}-${game.round}`}
                                 game={game}
                                 seats={room.seats}
@@ -946,21 +1182,21 @@ function MatchScreen({ game, room }: { game: GameState; room: RoomView }) {
                                 redrawPhase={redrawPhase}
                             />
                         )}
-                    </div>
-                    <details className="log-panel">
-                        <summary>
-                            <strong>LOG</strong>
-                            <small>{game.log[0]?.message}</small>
-                        </summary>
-                        <ol>
-                            {game.log.map((entry) => (
-                                <li key={entry.id} className={entry.tone}>
-                                    {entry.message}
-                                </li>
-                            ))}
-                        </ol>
-                    </details>
-                </div>
+                    </>
+                )}
+                <details className="log-panel">
+                    <summary>
+                        <strong>LOG</strong>
+                    </summary>
+                    <ol>
+                        {game.log.map((entry) => (
+                            <li key={entry.id} className={entry.tone}>
+                                {entry.message}
+                            </li>
+                        ))}
+                    </ol>
+                </details>
+                <div className="flight-layer" ref={layerRef} aria-hidden="true" />
             </main>
         </TipProvider>
     );

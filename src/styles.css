@@ -13,6 +13,7 @@
   --sea: #22859c;
   --muted: #5e6b72;
   --line: rgba(27, 42, 51, .16);
+  --card-back: repeating-linear-gradient(45deg, #1b2a33 0 6px, #2a3d47 6px 12px);
 }
 
 * { box-sizing: border-box; }
@@ -22,9 +23,9 @@ button, input { font: inherit; }
 button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 .app-shell { min-height: 100vh; min-height: 100dvh; background: var(--ground); }
-.site-header { width: 100%; min-height: 60px; gap: 8px; padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); background: rgba(233, 230, 220, .92); backdrop-filter: blur(16px); position: sticky; top: 0; z-index: 20; }
-.brand { min-width: 0; color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 900; letter-spacing: -.02em; display: flex; align-items: center; gap: 9px; }
-.brand-mark { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 10px; background: var(--ink); color: var(--paper); font-size: 16px; }
+.site-header { width: 100%; min-height: 56px; gap: 8px; padding: max(8px, env(safe-area-inset-top)) max(14px, env(safe-area-inset-right)) 8px max(14px, env(safe-area-inset-left)); display: flex; align-items: center; justify-content: space-between; border-bottom: 1px solid var(--line); background: rgba(233, 230, 220, .92); backdrop-filter: blur(16px); position: sticky; top: 0; z-index: 20; }
+.brand { min-width: 0; color: var(--ink); text-decoration: none; font-size: 15px; font-weight: 900; display: flex; align-items: center; gap: 9px; }
+.brand-mark { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 9px; background: var(--ink); color: var(--paper); font-size: 15px; }
 .site-header nav { flex: 0 0 auto; display: flex; gap: 2px; align-items: center; }
 .site-header nav a { color: var(--ink); text-decoration: none; font-size: 11px; font-weight: 700; padding: 9px 10px; border-radius: 99px; }
 .site-header nav a.active { background: var(--ink); color: white; }
@@ -33,41 +34,39 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 
 /* ---- ボタン ---- */
 .primary-button, .ghost-button { border: 0; border-radius: 14px; min-height: 52px; padding: 0 22px; font-weight: 800; transition: transform .18s, box-shadow .18s, background .18s; }
-.primary-button { background: var(--ink); color: white; box-shadow: 0 6px 0 #0b161c; }
-.primary-button:hover { transform: translateY(-2px); box-shadow: 0 8px 0 #0b161c; }
-.primary-button:active { transform: translateY(4px); box-shadow: 0 2px 0 #0b161c; }
+.primary-button { background: var(--ink); color: white; box-shadow: 0 5px 0 #0b161c; }
+.primary-button:active { transform: translateY(4px); box-shadow: 0 1px 0 #0b161c; }
 .ghost-button { background: transparent; border: 1px solid var(--line); color: var(--ink); }
 .ghost-button:hover { background: white; }
 .primary-button:disabled, .ghost-button:disabled { opacity: .45; cursor: not-allowed; transform: none; }
 .start-button { width: 100%; display: flex; justify-content: space-between; align-items: center; }
 .start-button span { font-size: 22px; }
+.error-message { margin: 0; padding: 9px 12px; border-radius: 8px; background: #f7d9d2; color: #8a2f22; font-size: 12px; }
+.section-index { font: 500 11px 'DM Mono'; color: var(--coral); letter-spacing: .06em; }
 
 /* ---- はじめる画面 ---- */
-.setup-page { min-height: calc(100dvh - 60px); display: grid; grid-template-columns: 1fr; }
+.setup-page { min-height: calc(100dvh - 56px); display: grid; grid-template-columns: 1fr; }
 .setup-page > * { min-width: 0; }
-.hero-card { width: 100%; max-width: 640px; padding: 32px 18px 44px; display: flex; flex-direction: column; gap: 16px; justify-self: center; }
-.mode-switch, .rule-switch { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.45); }
-.mode-switch button, .rule-switch button { min-height: 42px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; }
-.mode-switch button[aria-pressed="true"], .rule-switch button[aria-pressed="true"] { background: var(--ink); color: white; }
-.rule-switch button { display: grid; gap: 1px; padding: 6px; }
+.hero-card { width: 100%; max-width: 640px; padding: 32px 18px 44px; display: flex; flex-direction: column; gap: 20px; justify-self: center; }
+.setup-heading h1 { margin: 6px 0; font-size: 28px; letter-spacing: -.04em; }
+.setup-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.rule-switch { width: 100%; display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.45); }
+.rule-switch button { min-height: 42px; display: grid; gap: 1px; padding: 6px; border: 0; border-radius: 10px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; }
+.rule-switch button[aria-pressed="true"] { background: var(--ink); color: white; }
 .rule-switch small { font-size: 10px; font-weight: 400; opacity: .8; }
-.player-inputs { display: grid; gap: 8px; }
 .player-input { position: relative; display: block; padding: 11px 16px; background: rgba(255,255,255,.5); border: 1px solid var(--line); border-radius: 14px; }
 .player-input > span { font: 500 10px 'DM Mono'; color: var(--muted); letter-spacing: .06em; }
-.player-input input { width: 100%; border: 0; border-bottom: 1px solid transparent; background: transparent; padding: 4px 36px 2px 0; outline: none; font-size: 17px; font-weight: 700; color: var(--ink); }
+.player-input input { width: 100%; border: 0; border-bottom: 1px solid transparent; background: transparent; padding: 4px 0 2px; outline: none; font-size: 17px; font-weight: 700; color: var(--ink); }
 .player-input input:focus { border-color: var(--coral); }
-.remove-player { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 18px; }
-.remove-player:hover { background: white; }
 .add-player { min-height: 44px; border: 1px dashed var(--line); border-radius: 14px; background: transparent; color: var(--muted); font-size: 13px; font-weight: 700; }
 .add-player:hover { background: rgba(255,255,255,.5); color: var(--ink); }
-.setup-note { margin: 0; font-size: 12px; color: var(--muted); }
 .setup-aside { background: var(--ink); color: var(--paper); padding: 40px max(24px, env(safe-area-inset-right)) max(40px, env(safe-area-inset-bottom)) max(24px, env(safe-area-inset-left)); display: flex; flex-direction: column; justify-content: space-between; gap: 32px; overflow: hidden; }
 .big-numbers { display: flex; gap: .1em; font: 500 150px/.8 'DM Mono'; letter-spacing: -.08em; }
 .big-numbers span:first-child { color: var(--coral); }
 .big-numbers span:last-child { color: #6ec3d4; }
 .feature-list { display: grid; gap: 18px; }
 .feature-list div { display: grid; grid-template-columns: 30px 1fr; gap: 12px; padding-top: 14px; border-top: 1px solid rgba(255,255,255,.18); }
-.feature-list b, .section-index { font: 500 11px 'DM Mono'; color: var(--coral); }
+.feature-list b { font: 500 11px 'DM Mono'; color: var(--coral); }
 .feature-list span { display: grid; gap: 4px; font-size: 13px; color: #b9c3c6; }
 .feature-list strong { font: 500 12px 'DM Mono'; color: white; letter-spacing: .04em; }
 
@@ -80,10 +79,9 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .join-form input { min-width: 0; min-height: 52px; padding: 0 16px; border: 1px solid var(--line); border-radius: 14px; background: rgba(255,255,255,.7); font: 500 20px 'DM Mono'; letter-spacing: .2em; color: var(--ink); outline: none; }
 .join-form input:focus { border-color: var(--coral); }
 .join-form input::placeholder { font: 400 14px 'Noto Sans JP'; letter-spacing: 0; }
-.error-message { margin: 0; padding: 9px 12px; border-radius: 8px; background: #f7d9d2; color: #8a2f22; font-size: 12px; }
 
 /* ---- 待合室 ---- */
-.waiting-page { min-height: calc(100dvh - 60px); display: grid; place-items: center; padding: 32px max(18px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
+.waiting-page { min-height: calc(100dvh - 56px); display: grid; place-items: center; padding: 32px max(18px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left)); }
 .waiting-card { width: 100%; max-width: 440px; display: grid; gap: 14px; text-align: center; }
 .waiting-card h1 { margin: 0; font-size: 28px; letter-spacing: -.04em; }
 .waiting-card > p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
@@ -94,123 +92,100 @@ button { cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .member-list small { flex: 0 0 auto; padding: 2px 8px; border-radius: 99px; background: var(--ground); color: var(--muted); font-size: 10px; font-weight: 700; }
 .member-list small:first-of-type { margin-left: auto; }
 .member-list small.is-self { background: var(--ink); color: white; }
-.waiting-card .member-count { font: 500 12px 'DM Mono'; }
 .member-remove { flex: 0 0 auto; width: 28px; height: 28px; margin-left: 2px; border: 0; border-radius: 50%; background: transparent; color: var(--muted); font-size: 16px; }
 .member-remove:hover { background: white; }
-.score-name small.is-cpu { color: var(--muted); }
-.setup-heading h1 { margin: 6px 0; font-size: 28px; letter-spacing: -.04em; }
-.setup-heading p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.7; }
+.waiting-card .member-count { font: 500 12px 'DM Mono'; }
 .waiting-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .waiting-actions .primary-button { grid-column: 1 / -1; }
 .waiting-actions .ghost-button { min-height: 44px; padding: 0 10px; font-size: 12px; }
 
-/* ---- 対戦画面 ---- */
-.game-page { max-width: 1200px; margin: auto; padding: 8px max(10px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left)); }
-.game-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 8px; }
-.game-toolbar div { min-width: 0; display: flex; gap: 10px; align-items: center; }
-.game-toolbar span, .game-toolbar strong { font: 500 10px 'DM Mono'; letter-spacing: .06em; white-space: nowrap; }
-.game-toolbar span { color: var(--coral); }
-.game-toolbar strong { font-family: 'Noto Sans JP'; font-weight: 700; color: var(--muted); }
+/* ---- 対戦画面：上からほかの人・卓・自分の手札 ---- */
+.game-page { max-width: 640px; margin: auto; padding: 8px max(12px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); display: grid; gap: 10px; }
+.game-toolbar { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.game-toolbar span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font: 500 10px 'DM Mono'; color: var(--muted); letter-spacing: .04em; }
 .game-toolbar button { flex: 0 0 auto; border: 0; background: transparent; color: var(--muted); text-decoration: underline; font-size: 12px; }
-.game-error { margin-bottom: 8px; }
-.match-layout { display: grid; gap: 8px; grid-template-areas: "scores" "field" "action" "log"; }
-.match-layout > * { min-width: 0; }
 
-.scoreboard { grid-area: scores; margin: 0; padding: 0; list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
-.score-card { min-width: 0; display: grid; gap: 2px; padding: 8px 9px; border: 1px solid var(--line); border-radius: 12px; background: rgba(255,255,255,.5); transition: border-color .2s, background .2s, transform .2s; }
-.score-card.is-turn { border-color: var(--ink); background: white; transform: translateY(-2px); box-shadow: 0 6px 16px rgba(27,42,51,.08); }
-.score-card.is-winner { border-color: var(--coral); background: #fbe9e3; }
-.score-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; font-weight: 700; }
-.score-name small { margin-left: 4px; color: var(--coral); font-size: 9px; }
-.score-value { font: 500 26px/1 'DM Mono'; letter-spacing: -.04em; }
-.score-hand { display: flex; gap: 3px; height: 12px; align-items: end; }
-.score-hand i { width: 8px; height: 11px; border-radius: 2px; background: var(--ink); opacity: .7; }
+/* ほかの人の席 */
+.seats { margin: 0; padding: 0; list-style: none; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 6px; }
+.seat { position: relative; min-width: 0; display: grid; gap: 6px; padding: 8px 10px; border: 1.5px solid transparent; border-radius: 12px; background: rgba(255,255,255,.45); transition: border-color .2s, background .2s; }
+.seat.is-turn { border-color: var(--ink); background: white; }
+.seat.is-winner { border-color: var(--coral); }
+.seat-name { min-width: 0; padding-right: 30px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; font-weight: 700; }
+.seat-name small { margin-left: 4px; color: var(--muted); font-size: 9px; }
+.seat-score { position: absolute; top: 9px; right: 10px; font: 500 11px 'DM Mono'; color: var(--muted); }
+.seat-hand { display: flex; gap: 4px; height: 30px; align-items: center; }
+.mini-back { width: 21px; height: 30px; border-radius: 4px; background: var(--card-back); }
+.seat-hand em { color: var(--coral); font-size: 11px; font-style: normal; font-weight: 700; }
 
-.field-panel { grid-area: field; padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); }
-.field-head { display: flex; justify-content: space-between; align-items: end; margin-bottom: 10px; }
-.field-count { display: flex; align-items: baseline; gap: 6px; }
-.field-count strong { font: 500 46px/.9 'DM Mono'; letter-spacing: -.06em; }
-.field-count span { font: 500 12px 'DM Mono'; color: var(--muted); }
-.field-meta { margin: 0; display: flex; gap: 14px; }
-.field-meta div { display: grid; justify-items: end; }
-.field-meta dt { font-size: 10px; color: var(--muted); }
-.field-meta dd { margin: 0; font: 500 15px 'DM Mono'; }
+/* 卓：山札・場の枚数・捨て札、その下に場 */
+.table { display: grid; gap: 12px; padding: 12px; border-radius: 18px; background: var(--paper); border: 1px solid var(--line); }
+.table-top { display: grid; grid-template-columns: 60px 1fr 60px; align-items: center; gap: 10px; }
+.pile { height: 84px; display: grid; place-content: center; justify-items: center; gap: 2px; border-radius: 10px; }
+.pile b { font: 500 22px/1 'DM Mono'; }
+.pile small { font-size: 10px; }
+.deck { background: var(--card-back); color: var(--paper); box-shadow: 3px 3px 0 #0e1a20, 6px 6px 0 rgba(14,26,32,.3); }
+.deck.is-empty { background: transparent; color: var(--muted); border: 1.5px dashed var(--line); box-shadow: none; }
+.discard { border: 1.5px dashed var(--line); color: var(--muted); }
+.table-info { display: grid; justify-items: center; gap: 6px; }
+.table-info strong { font: 500 44px/1 'DM Mono'; letter-spacing: -.04em; }
+.table-info strong span { margin-left: 4px; font-size: 14px; color: var(--muted); letter-spacing: 0; }
+.direction { padding: 2px 10px; border-radius: 99px; background: var(--ground); color: var(--muted); font-size: 11px; font-weight: 700; }
+.direction.is-reversed { background: #fbe4dc; color: #b3421f; }
 .field-track { margin: 0; padding: 0; list-style: none; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 4px; }
 .field-cell { position: relative; min-width: 0; }
-.field-card, .field-slot { min-width: 0; height: 58px; display: grid; place-items: center; border-radius: 8px; font-size: 13px; font-weight: 900; }
-.field-card { width: 100%; overflow: hidden; padding: 3px; border: 1.5px solid var(--ink); background: white; color: var(--ink); white-space: nowrap; animation: card-land .36s cubic-bezier(.2, .9, .25, 1.3); }
+.field-card, .field-slot { min-width: 0; height: 64px; display: grid; place-items: center; border-radius: 8px; font-size: 12px; font-weight: 900; }
+.field-card { width: 100%; overflow: hidden; padding: 3px; border: 1.5px solid var(--ink); background: white; color: var(--ink); white-space: nowrap; }
 .field-card .card-art { width: 100%; height: 100%; }
 .field-card .card-art.is-text { width: auto; height: auto; font-size: inherit; }
-.field-card.card-resort { font-size: 12px; }
 .field-slot { border: 1.5px dashed var(--line); color: transparent; font: 500 12px 'DM Mono'; }
 .field-slot.slot-3 { border-color: var(--coral); color: var(--coral); }
 .field-slot.slot-7 { border-color: var(--sea); color: var(--sea); }
-.direction-note { margin: 8px 0 0; font-size: 11px; font-weight: 700; color: var(--coral); }
 
-.action-area { grid-area: action; display: grid; gap: 4px; align-content: start; }
-.event-feed { height: 42px; padding: 0 4px; overflow: hidden; }
-.event-line { margin: 0; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 11px; line-height: 21px; color: #838d90; }
-.event-line::before { content: ''; display: inline-block; width: 6px; height: 6px; margin-right: 7px; border-radius: 50%; vertical-align: middle; background: #9aa3a5; }
-.event-line.is-latest { color: var(--ink); font-weight: 700; animation: panel-arrive .3s ease-out; }
-.event-line.accent::before { background: var(--coral); }
-.event-line.danger::before { background: var(--ink); }
-.event-line.win::before { background: var(--sea); }
+.event-line { min-height: 20px; margin: 0; padding: 0 4px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 700; }
+.event-line span { animation: panel-arrive .3s ease-out; }
+.event-line .accent { color: #b3421f; }
+.event-line .win { color: var(--sea); }
 
-.hand-panel { padding: 12px; border: 1px solid var(--line); border-radius: 16px; background: var(--paper); animation: panel-arrive .3s ease-out; }
-.hand-panel h2 { margin: 4px 0 10px; font-size: 20px; letter-spacing: -.03em; }
-.hand-panel > p { margin: 0 0 8px; color: var(--muted); font-size: 12px; }
-.panel-kicker { font: 500 10px 'DM Mono'; letter-spacing: .1em; color: var(--coral); }
-.hand-panel.is-waiting .panel-kicker { color: var(--muted); }
-.hand-panel.is-busy button { pointer-events: none; opacity: .6; }
-.hand-cards { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+/* 自分の手札。大きく見せ、得点は小さく */
+.my-area { position: relative; padding: 12px; border: 1.5px solid var(--line); border-radius: 18px; background: var(--paper); transition: border-color .2s, box-shadow .2s; }
+.my-area.is-turn { border-color: var(--ink); box-shadow: 0 8px 20px rgba(27,42,51,.1); }
+.my-area.is-busy button { pointer-events: none; }
+.my-head { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.my-name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; font-weight: 700; }
+.my-score { flex: 0 0 auto; font: 500 12px 'DM Mono'; color: var(--muted); }
+.my-status { margin-left: auto; flex: 0 0 auto; font-size: 13px; font-weight: 900; color: var(--muted); }
+.my-area.is-turn .my-status { color: var(--coral); }
+.hand-cards { position: relative; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.hand-zero { position: absolute; inset: 0; display: grid; place-content: center; gap: 4px; border: 2px dashed var(--coral); border-radius: 14px; background: rgba(247,244,235,.92); text-align: center; animation: panel-arrive .2s ease-out; }
+.hand-zero strong { color: var(--coral); font-size: 20px; }
+.hand-zero span { color: var(--muted); font-size: 12px; }
 
-/* カードの絵。ドット絵なので、拡大してもにじませない */
+/* カード */
 .card-art { display: block; width: 76px; height: 76px; object-fit: contain; image-rendering: pixelated; user-select: none; -webkit-user-drag: none; }
 .card-art.is-text { display: grid; place-items: center; width: auto; font-size: 20px; font-weight: 900; white-space: nowrap; }
-
-/* カード。「な・み」は無地、効果があるカードは上に色の線を引く */
 .card-slot { position: relative; min-width: 0; }
-.card { position: relative; width: 100%; min-height: 124px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; padding: 10px 8px 8px; border: 1.5px solid var(--line); border-top: 5px solid var(--line); border-radius: 12px; background: white; color: var(--ink); }
-.card strong { font-size: 12px; line-height: 1.2; }
+.card { position: relative; width: 100%; aspect-ratio: 3 / 4; max-height: 38vh; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; padding: 10px 8px; border: 1.5px solid var(--line); border-top: 6px solid var(--line); border-radius: 14px; background: white; color: var(--ink); }
+.hand-cards .card .card-art { width: 74%; height: auto; aspect-ratio: 1; }
+.hand-cards .card .card-art.is-text { width: auto; aspect-ratio: auto; font-size: 26px; }
+.card strong { font-size: 14px; line-height: 1.2; }
 /* 絵がまだ無いカードは、大きな名前だけにする（名前が二重にならないように） */
 .card .card-art.is-text + strong { display: none; }
-.card em { position: absolute; top: 7px; right: 7px; padding: 1px 6px; border-radius: 99px; background: var(--ink); color: white; font: 500 9px/1.5 'DM Mono'; font-style: normal; }
+.card em { position: absolute; top: 8px; right: 8px; padding: 1px 7px; border-radius: 99px; background: var(--ink); color: white; font: 500 10px/1.5 'DM Mono'; font-style: normal; }
+.card em.is-redraw { background: var(--coral); font-family: 'Noto Sans JP'; font-weight: 700; }
+.card.is-pending { visibility: hidden; }
 .card-mina, .card-nami, .card-usagi, .card-momo { border-top-color: var(--coral); }
 .card-minami, .card-resort { border-top-color: var(--sea); }
 button.card { transition: border-color .15s, box-shadow .15s, transform .15s; }
-button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); transform: translateY(-3px); }
+button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); transform: translateY(-6px); }
 @media (hover: hover) { button.card:hover { border-color: var(--ink); } }
-.card em.is-redraw { background: var(--coral); }
 
-/* 山札から引いたカード：裏向きで飛んできて、表に返る */
-.card.is-draw { animation: card-draw .75s cubic-bezier(.2, .8, .25, 1) backwards; }
-.card-back { position: absolute; inset: -1.5px; top: -5px; z-index: 2; display: grid; place-items: center; border-radius: 12px; background: repeating-linear-gradient(45deg, var(--ink) 0 8px, #243842 8px 16px); color: var(--paper); font-size: 26px; font-weight: 900; pointer-events: none; animation: card-back-hide .75s linear forwards; }
-@keyframes card-draw {
-  0% { opacity: 0; transform: translate(36px, -110px) rotate(16deg) scale(.5); }
-  45% { opacity: 1; transform: translate(0, -14px) rotate(-3deg) scale(1.02) rotateY(0); }
-  62% { transform: translate(0, -8px) scale(1.02) rotateY(90deg); }
-  100% { transform: none; }
-}
-@keyframes card-back-hide {
-  0%, 61% { opacity: 1; }
-  62%, 100% { opacity: 0; }
-}
-
-/* 引き直しのあとに手番の1枚を引くときは、少し遅れて届く */
-.card.is-draw.is-late, .card.is-late .card-back { animation-delay: .3s; }
-
-/* みな：持っていたカードが手札から出ていき、いったん0枚になる */
-.card.is-discarding { animation: card-discard .5s ease-in forwards; }
-@keyframes card-discard {
-  0% { opacity: 1; transform: none; }
-  100% { opacity: 0; transform: translate(-20px, -80px) rotate(-16deg) scale(.6); }
-}
-.hand-cards.is-redrawing, .hand-empty { min-height: 124px; }
-.hand-empty { display: grid; place-content: center; gap: 4px; border: 1.5px dashed var(--coral); border-radius: 12px; text-align: center; animation: panel-arrive .25s ease-out; }
-.hand-empty strong { color: var(--coral); font-size: 18px; }
-.hand-empty span { color: var(--muted); font-size: 12px; }
-.hand-panel.is-waiting .hand-cards.is-redrawing, .hand-panel.is-waiting .hand-empty { min-height: 92px; }
-.score-hand.is-empty { align-items: center; color: var(--coral); font-size: 10px; font-weight: 700; }
+.play-preview { min-height: 22px; margin: 10px 0 0; font-size: 13px; color: var(--muted); }
+.play-preview b { margin: 0 2px; color: var(--ink); }
+.play-preview em { margin-left: 8px; padding: 2px 8px; border-radius: 99px; background: #fbe4dc; color: #b3421f; font-size: 11px; font-style: normal; font-weight: 700; }
+.play-preview em.is-over { background: var(--ground); color: var(--muted); }
+.action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
+.action-buttons > :only-child { grid-column: 1 / -1; }
+.action-buttons .primary-button, .action-buttons .ghost-button { min-height: 50px; padding: 0 10px; font-size: 14px; }
 
 .redraw-note { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0 0 8px; padding: 7px 10px; border-radius: 10px; background: #fbe4dc; font-size: 12px; animation: panel-arrive .3s ease-out; }
 .redraw-note b { color: #b3421f; font-size: 11px; }
@@ -218,8 +193,23 @@ button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5p
 .redraw-note i { color: var(--muted); font-style: normal; }
 .redraw-to { font-weight: 900; }
 
-.hand-panel.is-waiting .card { min-height: 92px; }
-.hand-panel.is-waiting .card .card-art { width: 54px; height: 54px; }
+.winner-panel { text-align: center; }
+.winner-panel h2 { margin: 6px 0 2px; font-size: clamp(28px, 7vw, 40px); }
+.winner-panel > p { margin: 0; color: var(--muted); font-size: 13px; }
+.ranking { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; text-align: left; }
+.ranking li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 10px; background: white; font-size: 13px; }
+.ranking li.is-winner { background: #fbe9e3; font-weight: 700; }
+.ranking b { font: 500 14px 'DM Mono'; }
+
+.log-panel { border-radius: 12px; color: var(--muted); }
+.log-panel summary { padding: 6px 4px; cursor: pointer; list-style: none; font: 500 10px 'DM Mono'; letter-spacing: .08em; }
+.log-panel summary::-webkit-details-marker { display: none; }
+.log-panel summary::after { content: ' +'; }
+.log-panel[open] summary::after { content: ' −'; }
+.log-panel ol { list-style: none; margin: 0; padding: 0 4px 8px; max-height: 180px; overflow: auto; }
+.log-panel li { padding: 6px 0; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; }
+.log-panel li.accent { color: #b3421f; }
+.log-panel li.win { color: var(--sea); }
 
 /* カードをタップ（マウスではホバー）すると出る説明 */
 .card-tip { display: none; position: absolute; z-index: 40; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); width: max-content; max-width: min(230px, 72vw); padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px; background: white; box-shadow: 0 12px 30px rgba(27,42,51,.2); color: var(--ink); text-align: left; pointer-events: none; }
@@ -231,41 +221,17 @@ button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5p
 @media (hover: hover) {
   .card-slot:hover .card-tip, .field-cell:hover .card-tip { display: block; animation: tip-arrive .18s ease-out; }
 }
-@keyframes tip-arrive {
-  from { opacity: 0; }
-  to { opacity: 1; }
-}
 
-.play-preview { min-height: 22px; margin: 10px 0 0; font-size: 13px; color: var(--muted); }
-.play-preview b { margin: 0 2px; color: var(--ink); }
-.play-preview em { margin-left: 8px; padding: 2px 8px; border-radius: 99px; background: #fbe4dc; color: #b3421f; font-size: 11px; font-style: normal; font-weight: 700; }
-.play-preview em.is-over { background: var(--ground); color: var(--muted); }
-.action-buttons { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-top: 10px; }
-.action-buttons > :only-child { grid-column: 1 / -1; }
-.action-buttons .primary-button, .action-buttons .ghost-button { min-height: 48px; padding: 0 10px; font-size: 13px; }
-
-.handoff-panel { text-align: center; padding-block: 22px; }
-.handoff-panel h2 { font-size: 26px; }
-.winner-panel { text-align: center; }
-.winner-panel h2 { margin: 6px 0 2px; font-size: clamp(28px, 7vw, 44px); }
-.ranking { margin: 12px 0 0; padding: 0; list-style: none; display: grid; gap: 4px; text-align: left; }
-.ranking li { display: flex; justify-content: space-between; gap: 8px; padding: 8px 12px; border-radius: 10px; background: white; font-size: 13px; }
-.ranking li.is-winner { background: #fbe9e3; font-weight: 700; }
-.ranking b { font: 500 14px 'DM Mono'; }
-
-.log-panel { grid-area: log; border: 1px solid var(--line); border-radius: 14px; background: rgba(247,244,235,.6); }
-.log-panel summary { min-height: 40px; padding: 8px 12px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: center; cursor: pointer; list-style: none; }
-.log-panel summary::-webkit-details-marker { display: none; }
-.log-panel summary::after { content: '+'; font: 500 15px 'DM Mono'; }
-.log-panel[open] summary::after { content: '−'; }
-.log-panel summary > strong { font: 500 10px 'DM Mono'; letter-spacing: .08em; }
-.log-panel summary > small { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 11px; }
-.log-panel ol { list-style: none; margin: 0; padding: 0 12px 10px; max-height: 180px; overflow: auto; }
-.log-panel li { position: relative; padding: 8px 0 8px 14px; border-top: 1px solid var(--line); font-size: 12px; line-height: 1.5; }
-.log-panel li::before { content: ''; position: absolute; left: 0; top: 14px; width: 6px; height: 6px; border-radius: 50%; background: #9aa3a5; }
-.log-panel li.accent::before { background: var(--coral); }
-.log-panel li.danger::before { background: var(--ink); }
-.log-panel li.win::before { background: var(--sea); }
+/* 飛んでいくカードと、うさぎ・もも・みなのスタンプ */
+.flight-layer { position: fixed; inset: 0; z-index: 50; pointer-events: none; overflow: hidden; }
+.flying-card { position: absolute; display: grid; place-items: center; border: 1.5px solid var(--ink); border-radius: 8px; background: white; box-shadow: 0 10px 24px rgba(27,42,51,.25); will-change: transform; }
+.flying-card img { width: 80%; height: 80%; object-fit: contain; image-rendering: pixelated; }
+.flying-card span { font-size: 13px; font-weight: 900; color: var(--ink); white-space: nowrap; }
+.flying-card.is-back { background: var(--card-back); }
+.stamp { position: absolute; padding: 7px 14px; border-radius: 99px; background: var(--ink); color: white; font-size: 15px; font-weight: 900; white-space: nowrap; box-shadow: 0 8px 20px rgba(27,42,51,.25); }
+.stamp.is-skip { background: var(--coral); }
+.stamp.is-reverse { background: var(--sea); font-size: 17px; }
+.stamp.is-mina { background: var(--coral); font-size: 17px; }
 
 /* ---- 開始時の説明 ---- */
 .intro-backdrop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom)); background: rgba(27,42,51,.55); animation: panel-arrive .2s ease-out; }
@@ -287,14 +253,11 @@ button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5p
 
 /* ---- 3点・7点・7超えの演出（触れても下の画面に届く） ---- */
 .burst { position: fixed; inset: 0; z-index: 55; display: grid; place-content: center; justify-items: center; gap: 10px; pointer-events: none; animation: burst-fade 1.3s ease forwards; }
-.burst strong { font: 900 clamp(120px, 36vw, 240px)/.9 'Noto Sans JP', sans-serif; letter-spacing: -.04em; animation: burst-pop .45s cubic-bezier(.2, .9, .25, 1.4); }
+.burst strong { font: 900 clamp(110px, 32vw, 220px)/.9 'Noto Sans JP', sans-serif; letter-spacing: -.04em; animation: burst-pop .45s cubic-bezier(.2, .9, .25, 1.4); }
 .burst span { padding: 7px 16px; border-radius: 99px; background: var(--ink); color: white; font-size: 15px; font-weight: 800; }
-.burst.is-three { background: radial-gradient(circle, rgba(224,96,60,.22), transparent 60%); }
 .burst.is-three strong { color: var(--coral); text-shadow: 6px 6px 0 var(--ink); }
-.burst.is-seven { background: radial-gradient(circle, rgba(34,133,156,.25), transparent 62%); }
 .burst.is-seven strong { color: var(--sea); text-shadow: 7px 7px 0 var(--ink); }
 .burst.is-over strong { color: var(--paper); -webkit-text-stroke: 3px var(--ink); text-decoration: line-through; text-decoration-thickness: .08em; }
-.burst.is-over { background: radial-gradient(circle, rgba(27,42,51,.2), transparent 62%); }
 
 @keyframes burst-pop {
   0% { opacity: 0; transform: scale(.3) rotate(-10deg); }
@@ -305,14 +268,13 @@ button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5p
   0%, 70% { opacity: 1; }
   100% { opacity: 0; }
 }
-@keyframes card-land {
-  0% { opacity: 0; transform: translateY(-16px) scale(.8); }
-  70% { opacity: 1; transform: translateY(2px) scale(1.04); }
-  100% { transform: none; }
-}
 @keyframes panel-arrive {
   from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: none; }
+}
+@keyframes tip-arrive {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* ---- 遊び方 ---- */
@@ -330,58 +292,45 @@ button.card.is-selected { border-color: var(--ink); box-shadow: inset 0 0 0 1.5p
 .section-heading { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .section-heading h2 { margin: 0; font: 500 13px 'DM Mono'; letter-spacing: .06em; }
 .card-rule-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
-@media (min-width: 621px) { .card-rule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.rule-card { padding: 10px 12px; border: 1px solid var(--line); border-top: 4px solid var(--line); border-radius: 12px; background: white; }
+.rule-card { grid-template-columns: 52px 1fr; padding: 10px 12px; border: 1px solid var(--line); border-top: 4px solid var(--line); border-radius: 12px; background: white; }
 .rule-card .card-art, .rule-card .card-art.is-text { width: 52px; height: 52px; }
-.rule-card { grid-template-columns: 52px 1fr; }
 .card-note { margin: 16px 0 0; font-size: 12px; line-height: 1.7; color: var(--muted); }
 .credits { margin-top: 48px; font-size: 12px; color: var(--muted); }
 .credits a { color: inherit; }
 
 @media (min-width: 621px) {
-  .site-header { min-height: 66px; padding-inline: 28px; }
+  .site-header { min-height: 64px; padding-inline: 28px; }
   .site-header nav { gap: 6px; }
   .site-header nav a { padding: 9px 14px; font-size: 13px; }
   .hero-card { padding: 56px 32px; }
-  .player-input input { font-size: 18px; }
   .big-numbers { font-size: 220px; }
-  .game-page { padding: 20px clamp(20px, 4vw, 40px) 48px; }
-  .field-panel, .hand-panel { padding: 18px; }
-  .field-card, .field-slot { height: 76px; font-size: 17px; }
-  .field-card.card-resort { font-size: 15px; }
-  .score-card { padding: 10px 12px; }
-  .score-name { font-size: 12px; }
-  .score-value { font-size: 32px; }
-  .card { min-height: 140px; }
-  .card .card-art { width: 92px; height: 92px; }
-  .hand-cards.is-redrawing, .hand-empty { min-height: 140px; }
+  .game-page { padding-top: 16px; gap: 12px; }
+  .table { padding: 16px; }
+  .pile { height: 100px; }
+  .table-top { grid-template-columns: 72px 1fr 72px; }
+  .field-card, .field-slot { height: 88px; font-size: 15px; }
+  .card { max-height: 320px; }
   .intro-cards { grid-template-columns: 1fr 1fr; }
   .rule-grid { grid-template-columns: repeat(2, 1fr); }
+  .card-rule-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rules-page { padding: 60px clamp(28px, 5vw, 64px) 88px; }
   .rules-hero h1 { font-size: 72px; }
 }
 
 @media (min-width: 901px) {
-  .setup-page { min-height: calc(100vh - 66px); grid-template-columns: minmax(0, 1.4fr) minmax(320px, .6fr); }
+  .setup-page { min-height: calc(100vh - 64px); grid-template-columns: minmax(0, 1.4fr) minmax(320px, .6fr); }
   .hero-card { justify-content: center; padding: 64px clamp(32px, 6vw, 90px); }
   .big-numbers { font-size: clamp(220px, 22vw, 320px); }
-  .match-layout { grid-template-columns: minmax(0, 1.25fr) minmax(340px, .75fr); grid-template-areas: "scores action" "field action" "log action"; gap: 12px 18px; align-items: start; }
-  .action-area { position: sticky; top: 86px; }
-  .field-card, .field-slot { height: 104px; font-size: 20px; }
-  .field-card.card-resort { font-size: 18px; }
-  .field-count strong { font-size: 64px; }
   .rule-grid { grid-template-columns: repeat(3, 1fr); }
 }
 
-@media (max-height: 700px) {
-  .site-header { min-height: 50px; padding-block: max(5px, env(safe-area-inset-top)) 5px; }
-  .brand-mark { width: 28px; height: 28px; }
-  .game-toolbar { display: none; }
-  .field-panel, .hand-panel { padding: 10px; }
-  .field-count strong { font-size: 34px; }
-  .field-card, .field-slot { height: 46px; }
-  .card { min-height: 104px; }
-  .hand-panel h2 { font-size: 17px; margin-bottom: 6px; }
+@media (max-height: 720px) {
+  .site-header { min-height: 48px; padding-block: max(4px, env(safe-area-inset-top)) 4px; }
+  .brand-mark { width: 26px; height: 26px; }
+  .pile { height: 64px; }
+  .table-info strong { font-size: 34px; }
+  .field-card, .field-slot { height: 52px; }
+  .card { max-height: 30vh; }
 }
 
 @media (prefers-reduced-motion: reduce) {
